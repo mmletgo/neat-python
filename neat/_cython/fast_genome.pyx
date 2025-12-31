@@ -841,13 +841,19 @@ cpdef void fast_configure_crossover(
         # 检查 key 是否相同（处理 innovation 碰撞）
         if cg1.key != cg2.key:
             # Innovation 碰撞：当作 disjoint 处理，只取 parent1
-            new_gene = conn_gene_type(cg1.key, innovation=cg1.innovation)
+            # 使用 object.__new__() 绕过 __init__ 断言检查
+            new_gene = object.__new__(conn_gene_type)
+            new_gene.key = cg1.key
+            new_gene.innovation = cg1.innovation
             new_gene.weight = cg1.weight
             new_gene.enabled = cg1.enabled
             child_connections[new_gene.key] = new_gene
         else:
             # 同源基因：随机选择属性
-            new_gene = conn_gene_type(cg1.key, innovation=innovation_num)
+            # 使用 object.__new__() 绕过 __init__ 断言检查
+            new_gene = object.__new__(conn_gene_type)
+            new_gene.key = cg1.key
+            new_gene.innovation = innovation_num
 
             # 随机选择 weight
             r = fast_random()
@@ -874,7 +880,10 @@ cpdef void fast_configure_crossover(
     # 处理 disjoint/excess 连接基因（只从 parent1 继承）
     for innovation_num in disjoint_innovations_set:
         cg1 = parent1_innovations[innovation_num]
-        new_gene = conn_gene_type(cg1.key, innovation=cg1.innovation)
+        # 使用 object.__new__() 绕过 __init__ 断言检查
+        new_gene = object.__new__(conn_gene_type)
+        new_gene.key = cg1.key
+        new_gene.innovation = cg1.innovation
         new_gene.weight = cg1.weight
         new_gene.enabled = cg1.enabled
         child_connections[new_gene.key] = new_gene
@@ -890,7 +899,9 @@ cpdef void fast_configure_crossover(
         ng1 = parent1_nodes[node_key]
         ng2 = parent2_nodes[node_key]
 
-        new_node = node_gene_type(node_key)
+        # 使用 object.__new__() 绕过 __init__ 断言检查
+        new_node = object.__new__(node_gene_type)
+        new_node.key = node_key
 
         # 随机选择 bias
         r = fast_random()
@@ -925,7 +936,9 @@ cpdef void fast_configure_crossover(
     # 处理 disjoint/excess 节点基因（只从 parent1 继承）
     for node_key in disjoint_node_keys:
         ng1 = parent1_nodes[node_key]
-        new_node = node_gene_type(node_key)
+        # 使用 object.__new__() 绕过 __init__ 断言检查
+        new_node = object.__new__(node_gene_type)
+        new_node.key = node_key
         new_node.bias = ng1.bias
         new_node.response = ng1.response
         new_node.activation = ng1.activation
