@@ -190,10 +190,15 @@ cdef class FastFeedForwardNetwork:
         # 只保留 required 节点的连接（过滤 conn_map）
         cdef set required_with_inputs = required.union(set(input_keys))
 
+        # 缓存 genome.nodes 避免重复属性访问
+        cdef dict genome_nodes = genome.nodes
+
         # 第一遍：计算总连接数并填充节点信息
+        # 同时缓存每个节点的连接列表，避免第二遍重复查找
         cdef int i = 0
         cdef int total_conns = 0
         cdef list node_conns
+        cdef list all_node_conns = []  # 缓存每个节点的连接列表
 
         conn_indptr[0] = 0
         for layer in layers:
@@ -202,14 +207,17 @@ cdef class FastFeedForwardNetwork:
                 node_ids[i] = node
 
                 # 获取节点基因
-                ng = genome.nodes[node]
+                ng = genome_nodes[node]
                 biases[i] = ng.bias
                 responses[i] = ng.response
                 act_types[i] = act_map.get(ng.activation, ACT_TANH)
 
+                # 获取并缓存该节点的连接（使用 get 避免两次查找）
+                node_conns = conn_map.get(node)
+                all_node_conns.append(node_conns)
+
                 # 计算该节点的有效连接数
-                if node in conn_map:
-                    node_conns = conn_map[node]
+                if node_conns is not None:
                     for src, _ in node_conns:
                         if src in required_with_inputs:
                             total_conns += 1
@@ -222,14 +230,13 @@ cdef class FastFeedForwardNetwork:
         cdef np.ndarray[np.int32_t, ndim=1] conn_sources = np.empty(total_conns, dtype=np.int32)
         cdef np.ndarray[DTYPE_t, ndim=1] conn_weights = np.empty(total_conns, dtype=DTYPE)
 
-        # 第二遍：填充连接数组
+        # 第二遍：填充连接数组（使用缓存的连接列表）
         cdef int conn_idx = 0
         cdef double weight
 
         for i in range(num_nodes):
-            node = node_ids[i]
-            if node in conn_map:
-                node_conns = conn_map[node]
+            node_conns = all_node_conns[i]
+            if node_conns is not None:
                 for src, weight in node_conns:
                     if src in required_with_inputs:
                         conn_sources[conn_idx] = id_to_idx[src]

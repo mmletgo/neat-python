@@ -72,6 +72,10 @@ try:
         create_single_connection_gene,
         create_single_node_gene,
     )
+    from neat._cython.fast_innovation import (
+        fast_get_innovations_batch,
+        fast_get_innovations_batch_array,
+    )
     _CYTHON_AVAILABLE = True
 except ImportError:
     pass

@@ -15,6 +15,14 @@ through independent mutations in the same generation, each identical mutation
 is assigned the same innovation number."
 """
 
+# 尝试导入 Cython 优化版本
+_USE_CYTHON = False
+try:
+    from neat._cython import fast_get_innovations_batch
+    _USE_CYTHON = True
+except ImportError:
+    pass
+
 
 class InnovationTracker:
     """
@@ -101,7 +109,7 @@ class InnovationTracker:
         批量获取多个连接的 innovation number
 
         比循环调用 get_innovation_number 更高效，减少 Python 函数调用开销。
-        内部直接操作字典，避免重复的函数调用和 key 创建开销。
+        如果 Cython 优化版本可用，会使用 Cython 实现以获得更好的性能。
 
         Args:
             connection_pairs: 连接对列表 [(input_node, output_node), ...]
@@ -117,6 +125,18 @@ class InnovationTracker:
             >>> print(innovations)
             [1, 2, 3, 1]  # 相同连接获得相同的 innovation number
         """
+        # 尝试使用 Cython 优化版本
+        if _USE_CYTHON:
+            result, new_counter = fast_get_innovations_batch(
+                self.generation_innovations,
+                connection_pairs,
+                mutation_type,
+                self.global_counter
+            )
+            self.global_counter = new_counter
+            return result
+
+        # Python 回退实现
         result = []
         gen_innovations = self.generation_innovations
 

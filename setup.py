@@ -41,6 +41,7 @@ def get_extensions():
         "fast_graphs.pyx",
         "fast_network.pyx",
         "fast_gene_factory.pyx",
+        "fast_innovation.pyx",
     ]
 
     extensions = []

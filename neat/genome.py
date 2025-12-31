@@ -826,13 +826,25 @@ class DefaultGenome:
                 getattr(config, 'enabled_default', 'true')
             )
 
-            # 创建连接基因并设置属性
-            for i, (input_id, output_id) in enumerate(connection_pairs):
-                key = (input_id, output_id)
-                connection = config.connection_gene_type(key, innovation=innovations[i])
-                connection.weight = weights[i]
-                connection.enabled = bool(enabled_arr[i])
-                self.connections[key] = connection
+            # 使用 Cython 批量创建连接基因（绕过 __init__ 断言检查）
+            if _GENE_FACTORY_AVAILABLE:
+                new_genes = create_connection_genes_batch(
+                    config.connection_gene_type,
+                    connection_pairs,
+                    innovations,
+                    weights,
+                    enabled_arr
+                )
+                for gene in new_genes:
+                    self.connections[gene.key] = gene
+            else:
+                # 回退到逐个创建（仍使用批量生成的属性值）
+                for i, (input_id, output_id) in enumerate(connection_pairs):
+                    key = (input_id, output_id)
+                    connection = config.connection_gene_type(key, innovation=innovations[i])
+                    connection.weight = weights[i]
+                    connection.enabled = bool(enabled_arr[i])
+                    self.connections[key] = connection
         else:
             # 回退到逐个创建
             for i, (input_id, output_id) in enumerate(connection_pairs):
