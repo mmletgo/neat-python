@@ -47,6 +47,8 @@ try:
         fast_init_bool_genes,
         fast_node_distance,
         fast_connection_distance,
+        fast_string_distance,
+        fast_full_node_distance,
     )
     from neat._cython.fast_genome import (
         MutationConfig,
@@ -63,6 +65,12 @@ try:
         fast_feed_forward_layers,
     )
     from neat._cython.fast_network import FastFeedForwardNetwork
+    from neat._cython.fast_gene_factory import (
+        create_connection_genes_batch,
+        create_node_genes_batch,
+        create_single_connection_gene,
+        create_single_node_gene,
+    )
     _CYTHON_AVAILABLE = True
 except ImportError:
     pass

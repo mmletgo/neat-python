@@ -35,10 +35,23 @@ try:
         fast_init_bool_genes,
         fast_connection_distance,
         fast_node_distance as cython_fast_node_distance_v2,
+        fast_string_distance,
+        fast_full_node_distance,
     )
     _CYTHON_AVAILABLE = True
 except ImportError:
     MutationConfig = None  # type: ignore
+
+# 尝试导入 Cython 优化的基因批量创建工厂
+_GENE_FACTORY_AVAILABLE = False
+try:
+    from neat._cython.fast_gene_factory import (
+        create_connection_genes_batch,
+        create_node_genes_batch,
+    )
+    _GENE_FACTORY_AVAILABLE = True
+except ImportError:
+    pass
 
 
 class DefaultGenomeConfig:
@@ -124,11 +137,26 @@ class DefaultGenomeConfig:
         if _CYTHON_AVAILABLE and MutationConfig is not None:
             self._mutation_config = MutationConfig.from_neat_config(self)
 
-    def add_activation(self, name, func):
-        self.activation_defs.add(name, func)
+        # 创建 activation/aggregation 字符串到整数的编码映射
+        # 用于 _distance_fast 中的快速字符串比较
+        self.activation_to_int: dict[str, int] = {
+            name: i for i, name in enumerate(self.activation_defs.functions.keys())
+        }
+        self.aggregation_to_int: dict[str, int] = {
+            name: i for i, name in enumerate(self.aggregation_function_defs.functions.keys())
+        }
 
-    def add_aggregation(self, name, func):
+    def add_activation(self, name: str, func) -> None:
+        self.activation_defs.add(name, func)
+        # 更新编码映射
+        if name not in self.activation_to_int:
+            self.activation_to_int[name] = len(self.activation_to_int)
+
+    def add_aggregation(self, name: str, func) -> None:
         self.aggregation_function_defs.add(name, func)
+        # 更新编码映射
+        if name not in self.aggregation_to_int:
+            self.aggregation_to_int[name] = len(self.aggregation_to_int)
 
     def save(self, f):
         if 'partial' in self.initial_connection:
@@ -360,24 +388,41 @@ class DefaultGenome:
 
             # 处理有效的同源基因 - 使用批量交叉
             if valid_homologous:
-                # 使用列表推导式一次性构建数组，避免逐元素赋值循环
-                p1_weights = np.array([cg1.weight for _, cg1, _ in valid_homologous], dtype=np.float64)
-                p2_weights = np.array([cg2.weight for _, _, cg2 in valid_homologous], dtype=np.float64)
-                p1_enabled = np.array([cg1.enabled for _, cg1, _ in valid_homologous], dtype=np.uint8)
-                p2_enabled = np.array([cg2.enabled for _, _, cg2 in valid_homologous], dtype=np.uint8)
+                n = len(valid_homologous)
+                # 预分配数组，避免列表推导式的临时列表开销
+                p1_weights = np.empty(n, dtype=np.float64)
+                p2_weights = np.empty(n, dtype=np.float64)
+                p1_enabled = np.empty(n, dtype=np.uint8)
+                p2_enabled = np.empty(n, dtype=np.uint8)
+                for i, (_, cg1, cg2) in enumerate(valid_homologous):
+                    p1_weights[i] = cg1.weight
+                    p2_weights[i] = cg2.weight
+                    p1_enabled[i] = cg1.enabled
+                    p2_enabled[i] = cg2.enabled
 
                 # 批量交叉
                 new_weights, new_enabled = fast_crossover_genes(
                     p1_weights, p2_weights, p1_enabled, p2_enabled
                 )
 
-                # 直接创建新基因对象（避免 copy() 调用）
+                # 创建新基因对象
                 conn_gene_type = config.connection_gene_type
-                for i, (innovation_num, cg1, _) in enumerate(valid_homologous):
-                    new_gene = conn_gene_type(cg1.key, innovation=innovation_num)
-                    new_gene.weight = new_weights[i]
-                    new_gene.enabled = bool(new_enabled[i])
-                    self.connections[new_gene.key] = new_gene
+                if _GENE_FACTORY_AVAILABLE:
+                    # 使用批量创建（如果可用）
+                    keys = [cg1.key for _, cg1, _ in valid_homologous]
+                    innov_list = [inn for inn, _, _ in valid_homologous]
+                    new_genes = create_connection_genes_batch(
+                        conn_gene_type, keys, innov_list, new_weights, new_enabled
+                    )
+                    for gene in new_genes:
+                        self.connections[gene.key] = gene
+                else:
+                    # 回退：逐个创建基因对象
+                    for i, (innovation_num, cg1, _) in enumerate(valid_homologous):
+                        new_gene = conn_gene_type(cg1.key, innovation=innovation_num)
+                        new_gene.weight = new_weights[i]
+                        new_gene.enabled = bool(new_enabled[i])
+                        self.connections[new_gene.key] = new_gene
 
             # 处理碰撞基因（innovation 相同但 key 不同）- 警告并取 fitter parent
             if collision_innovations:
@@ -418,33 +463,56 @@ class DefaultGenome:
 
         # 处理同源节点 - 批量交叉
         if homologous_keys:
+            n = len(homologous_keys)
             # 预先获取所有同源节点对，减少重复字典查找
             homologous_nodes_p1 = [parent1_set[k] for k in homologous_keys]
             homologous_nodes_p2 = [parent2_set[k] for k in homologous_keys]
 
-            # 使用列表推导式一次性构建数组，避免逐元素赋值循环
-            p1_biases = np.array([n.bias for n in homologous_nodes_p1], dtype=np.float64)
-            p2_biases = np.array([n.bias for n in homologous_nodes_p2], dtype=np.float64)
-            p1_responses = np.array([n.response for n in homologous_nodes_p1], dtype=np.float64)
-            p2_responses = np.array([n.response for n in homologous_nodes_p2], dtype=np.float64)
+            # 预分配数组，避免列表推导式的临时列表开销
+            p1_biases = np.empty(n, dtype=np.float64)
+            p2_biases = np.empty(n, dtype=np.float64)
+            p1_responses = np.empty(n, dtype=np.float64)
+            p2_responses = np.empty(n, dtype=np.float64)
+            for i in range(n):
+                p1_biases[i] = homologous_nodes_p1[i].bias
+                p2_biases[i] = homologous_nodes_p2[i].bias
+                p1_responses[i] = homologous_nodes_p1[i].response
+                p2_responses[i] = homologous_nodes_p2[i].response
 
             # 批量交叉
             new_biases, new_responses = fast_crossover_node_genes(
                 p1_biases, p2_biases, p1_responses, p2_responses
             )
 
-            # 直接创建新节点对象（避免 copy() 调用）
+            # 创建新节点对象
             node_gene_type = config.node_gene_type
-            for i, key in enumerate(homologous_keys):
-                ng1 = homologous_nodes_p1[i]
-                ng2 = homologous_nodes_p2[i]
-                new_node = node_gene_type(key)
-                new_node.bias = new_biases[i]
-                new_node.response = new_responses[i]
-                # 字符串属性需要单独随机选择
-                new_node.activation = ng1.activation if random() > 0.5 else ng2.activation
-                new_node.aggregation = ng1.aggregation if random() > 0.5 else ng2.aggregation
-                self.nodes[key] = new_node
+            if _GENE_FACTORY_AVAILABLE:
+                # 使用批量创建（如果可用）
+                activations = []
+                aggregations = []
+                for i in range(n):
+                    ng1 = homologous_nodes_p1[i]
+                    ng2 = homologous_nodes_p2[i]
+                    activations.append(ng1.activation if random() > 0.5 else ng2.activation)
+                    aggregations.append(ng1.aggregation if random() > 0.5 else ng2.aggregation)
+                new_nodes = create_node_genes_batch(
+                    node_gene_type, homologous_keys, new_biases, new_responses,
+                    activations, aggregations
+                )
+                for node in new_nodes:
+                    self.nodes[node.key] = node
+            else:
+                # 回退：逐个创建节点对象
+                for i, key in enumerate(homologous_keys):
+                    ng1 = homologous_nodes_p1[i]
+                    ng2 = homologous_nodes_p2[i]
+                    new_node = node_gene_type(key)
+                    new_node.bias = new_biases[i]
+                    new_node.response = new_responses[i]
+                    # 字符串属性需要单独随机选择
+                    new_node.activation = ng1.activation if random() > 0.5 else ng2.activation
+                    new_node.aggregation = ng1.aggregation if random() > 0.5 else ng2.aggregation
+                    self.nodes[key] = new_node
 
         # 处理 disjoint/excess 节点（只来自 fitter parent）
         node_gene_type = config.node_gene_type

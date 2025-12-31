@@ -425,3 +425,96 @@ cpdef double fast_connection_distance(
     cdef double enabled_count = np.sum(enabled_diff)
 
     return (weight_diff + enabled_count) * compatibility_weight_coefficient
+
+
+cpdef double fast_string_distance(
+    np.ndarray[np.int32_t, ndim=1] acts1,
+    np.ndarray[np.int32_t, ndim=1] acts2,
+    np.ndarray[np.int32_t, ndim=1] aggs1,
+    np.ndarray[np.int32_t, ndim=1] aggs2,
+    double weight_coeff
+):
+    """
+    计算字符串属性差异的距离
+
+    用于计算 activation 和 aggregation 属性的差异。
+    字符串已预先编码为整数，避免字符串比较开销。
+
+    Args:
+        acts1: 第一组节点的 activation 编码
+        acts2: 第二组节点的 activation 编码
+        aggs1: 第一组节点的 aggregation 编码
+        aggs2: 第二组节点的 aggregation 编码
+        weight_coeff: 兼容性权重系数
+
+    Returns:
+        总距离（activation 和 aggregation 差异数 * weight_coeff）
+    """
+    cdef int n = acts1.shape[0]
+    if n == 0:
+        return 0.0
+
+    cdef double dist = 0.0
+    cdef int i
+
+    for i in range(n):
+        if acts1[i] != acts2[i]:
+            dist += weight_coeff
+        if aggs1[i] != aggs2[i]:
+            dist += weight_coeff
+
+    return dist
+
+
+cpdef double fast_full_node_distance(
+    list nodes1,
+    list nodes2,
+    dict act_to_int,
+    dict agg_to_int,
+    double weight_coeff
+):
+    """
+    一次性计算所有节点属性的距离（数值 + 字符串）
+
+    将数值属性和字符串属性的距离计算合并到一个函数中，
+    避免多次 Python-Cython 边界穿越和重复的列表遍历。
+
+    Args:
+        nodes1: 第一组节点对象列表
+        nodes2: 第二组节点对象列表（长度必须与 nodes1 相同）
+        act_to_int: activation 名称到整数的映射
+        agg_to_int: aggregation 名称到整数的映射
+        weight_coeff: 兼容性权重系数
+
+    Returns:
+        总节点距离
+    """
+    cdef int n = len(nodes1)
+    if n == 0:
+        return 0.0
+
+    cdef double dist = 0.0
+    cdef int i
+    cdef object n1, n2
+    cdef int act1_int, act2_int, agg1_int, agg2_int
+
+    for i in range(n):
+        n1 = nodes1[i]
+        n2 = nodes2[i]
+
+        # 数值属性距离
+        dist += abs(n1.bias - n2.bias) * weight_coeff
+        dist += abs(n1.response - n2.response) * weight_coeff
+
+        # 字符串属性距离（使用整数编码比较）
+        act1_int = act_to_int[n1.activation]
+        act2_int = act_to_int[n2.activation]
+        if act1_int != act2_int:
+            dist += weight_coeff
+
+        agg1_int = agg_to_int[n1.aggregation]
+        agg2_int = agg_to_int[n2.aggregation]
+        if agg1_int != agg2_int:
+            dist += weight_coeff
+
+    return dist
