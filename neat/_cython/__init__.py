@@ -58,6 +58,7 @@ try:
         fast_genome_distance,
         fast_node_distance as fast_node_distance_genome,
         fast_mutate_population,
+        fast_configure_crossover,
     )
     from neat._cython.fast_graphs import (
         fast_creates_cycle,

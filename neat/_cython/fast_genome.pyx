@@ -643,3 +643,291 @@ def fast_mutate_population(
     """
     for genome in genomes:
         fast_mutate_genome(genome.nodes, genome.connections, config)
+
+
+# ============================================================================
+# 完整的基因组距离计算（一次性完成，避免临时数组）
+# ============================================================================
+
+cpdef double fast_genome_distance_full(
+    dict self_nodes,
+    dict self_connections,
+    dict other_nodes,
+    dict other_connections,
+    object config
+):
+    """
+    一次性计算两个基因组的完整距离
+
+    将整个距离计算逻辑移到 Cython 中，避免：
+    1. Python 层创建临时 numpy 数组
+    2. Python 层遍历 dict 构建同源基因列表
+    3. 多次 Python-Cython 边界穿越
+
+    距离计算公式（与原始实现保持一致）：
+    node_distance = (同源节点距离和 + disjoint_coefficient * 非同源节点数) / max_nodes
+    conn_distance = (同源连接距离和 + disjoint_coefficient * 非同源连接数) / max_conns
+    total_distance = node_distance + conn_distance
+
+    Args:
+        self_nodes: 第一个基因组的节点字典 {node_id: NodeGene}
+        self_connections: 第一个基因组的连接字典 {conn_key: ConnectionGene}
+        other_nodes: 第二个基因组的节点字典
+        other_connections: 第二个基因组的连接字典
+        config: 配置对象，需要有以下属性:
+            - compatibility_weight_coefficient
+            - compatibility_disjoint_coefficient
+            - activation_to_int (dict)
+            - aggregation_to_int (dict)
+
+    Returns:
+        两个基因组的总距离
+    """
+    cdef double weight_coeff = config.compatibility_weight_coefficient
+    cdef double disjoint_coeff = config.compatibility_disjoint_coefficient
+    cdef dict act_to_int = config.activation_to_int
+    cdef dict agg_to_int = config.aggregation_to_int
+
+    cdef double node_distance = 0.0
+    cdef double connection_distance = 0.0
+    cdef int disjoint_nodes = 0
+    cdef int disjoint_connections = 0
+    cdef int max_nodes, max_conns
+    cdef int len_self_nodes = len(self_nodes)
+    cdef int len_other_nodes = len(other_nodes)
+    cdef int len_self_conns = len(self_connections)
+    cdef int len_other_conns = len(other_connections)
+
+    cdef object key, n1, n2, c1, c2
+    cdef double diff, bias_diff, response_diff, weight_diff
+    cdef int act1_int, act2_int, agg1_int, agg2_int
+
+    # ========== 计算节点基因距离 ==========
+    if len_self_nodes > 0 or len_other_nodes > 0:
+        # 遍历 other_nodes，找出不在 self_nodes 中的节点
+        for key in other_nodes:
+            if key not in self_nodes:
+                disjoint_nodes += 1
+
+        # 遍历 self_nodes，计算同源节点距离或计数非同源节点
+        for key in self_nodes:
+            n2 = other_nodes.get(key)
+            if n2 is None:
+                disjoint_nodes += 1
+            else:
+                n1 = self_nodes[key]
+                # 计算节点距离: |bias1 - bias2| + |response1 - response2| + activation_diff + aggregation_diff
+                bias_diff = n1.bias - n2.bias
+                if bias_diff < 0:
+                    bias_diff = -bias_diff
+
+                response_diff = n1.response - n2.response
+                if response_diff < 0:
+                    response_diff = -response_diff
+
+                diff = bias_diff + response_diff
+
+                # 字符串属性距离（使用整数编码比较）
+                act1_int = act_to_int[n1.activation]
+                act2_int = act_to_int[n2.activation]
+                if act1_int != act2_int:
+                    diff += 1.0
+
+                agg1_int = agg_to_int[n1.aggregation]
+                agg2_int = agg_to_int[n2.aggregation]
+                if agg1_int != agg2_int:
+                    diff += 1.0
+
+                node_distance += diff * weight_coeff
+
+        max_nodes = len_self_nodes if len_self_nodes > len_other_nodes else len_other_nodes
+        node_distance = (node_distance + disjoint_coeff * disjoint_nodes) / max_nodes
+
+    # ========== 计算连接基因距离 ==========
+    if len_self_conns > 0 or len_other_conns > 0:
+        # 遍历 other_connections，找出不在 self_connections 中的连接
+        for key in other_connections:
+            if key not in self_connections:
+                disjoint_connections += 1
+
+        # 遍历 self_connections，计算同源连接距离或计数非同源连接
+        for key in self_connections:
+            c2 = other_connections.get(key)
+            if c2 is None:
+                disjoint_connections += 1
+            else:
+                c1 = self_connections[key]
+                # 计算连接距离: |weight1 - weight2| + enabled_diff
+                weight_diff = c1.weight - c2.weight
+                if weight_diff < 0:
+                    weight_diff = -weight_diff
+
+                diff = weight_diff
+                if c1.enabled != c2.enabled:
+                    diff += 1.0
+
+                connection_distance += diff * weight_coeff
+
+        max_conns = len_self_conns if len_self_conns > len_other_conns else len_other_conns
+        connection_distance = (connection_distance + disjoint_coeff * disjoint_connections) / max_conns
+
+    return node_distance + connection_distance
+
+
+# ============================================================================
+# 快速交叉操作
+# ============================================================================
+
+cpdef void fast_configure_crossover(
+    dict child_nodes,
+    dict child_connections,
+    dict parent1_nodes,
+    dict parent1_connections,
+    dict parent2_nodes,
+    dict parent2_connections,
+    object node_gene_type,
+    object conn_gene_type,
+    list activation_options,
+    list aggregation_options
+):
+    """
+    将整个交叉操作移到 Cython 中执行
+
+    直接在 Cython 层遍历父代字典，找出同源基因进行交叉，
+    处理 disjoint/excess 基因，创建新基因对象填充子代字典。
+
+    Args:
+        child_nodes: 子代节点字典（待填充，应为空字典）
+        child_connections: 子代连接字典（待填充，应为空字典）
+        parent1_nodes: 较优父代的节点字典
+        parent1_connections: 较优父代的连接字典
+        parent2_nodes: 较差父代的节点字典
+        parent2_connections: 较差父代的连接字典
+        node_gene_type: 节点基因类型（DefaultNodeGene 类）
+        conn_gene_type: 连接基因类型（DefaultConnectionGene 类）
+        activation_options: 可用的 activation 函数列表（未使用，保留兼容性）
+        aggregation_options: 可用的 aggregation 函数列表（未使用，保留兼容性）
+    """
+    cdef double r
+    cdef object cg1, cg2, ng1, ng2, new_gene, new_node
+    cdef tuple key
+    cdef int innovation_num
+    cdef int node_key
+
+    # ========== 处理连接基因 ==========
+    # 建立 innovation number 到连接基因的映射
+    cdef dict parent1_innovations = {}
+    cdef dict parent2_innovations = {}
+
+    for key in parent1_connections:
+        cg1 = parent1_connections[key]
+        parent1_innovations[cg1.innovation] = cg1
+
+    for key in parent2_connections:
+        cg2 = parent2_connections[key]
+        parent2_innovations[cg2.innovation] = cg2
+
+    # 找出同源和 disjoint innovations
+    cdef set p1_innovations_set = set(parent1_innovations.keys())
+    cdef set p2_innovations_set = set(parent2_innovations.keys())
+    cdef set homologous_innovations_set = p1_innovations_set & p2_innovations_set
+    cdef set disjoint_innovations_set = p1_innovations_set - p2_innovations_set
+
+    # 处理同源连接基因
+    for innovation_num in homologous_innovations_set:
+        cg1 = parent1_innovations[innovation_num]
+        cg2 = parent2_innovations[innovation_num]
+
+        # 检查 key 是否相同（处理 innovation 碰撞）
+        if cg1.key != cg2.key:
+            # Innovation 碰撞：当作 disjoint 处理，只取 parent1
+            new_gene = conn_gene_type(cg1.key, innovation=cg1.innovation)
+            new_gene.weight = cg1.weight
+            new_gene.enabled = cg1.enabled
+            child_connections[new_gene.key] = new_gene
+        else:
+            # 同源基因：随机选择属性
+            new_gene = conn_gene_type(cg1.key, innovation=innovation_num)
+
+            # 随机选择 weight
+            r = fast_random()
+            if r > 0.5:
+                new_gene.weight = cg1.weight
+            else:
+                new_gene.weight = cg2.weight
+
+            # 随机选择 enabled
+            r = fast_random()
+            if r > 0.5:
+                new_gene.enabled = cg1.enabled
+            else:
+                new_gene.enabled = cg2.enabled
+
+            # 75% 禁用规则：如果任一父代禁用，75% 概率子代也禁用
+            if not cg1.enabled or not cg2.enabled:
+                r = fast_random()
+                if r < 0.75:
+                    new_gene.enabled = False
+
+            child_connections[new_gene.key] = new_gene
+
+    # 处理 disjoint/excess 连接基因（只从 parent1 继承）
+    for innovation_num in disjoint_innovations_set:
+        cg1 = parent1_innovations[innovation_num]
+        new_gene = conn_gene_type(cg1.key, innovation=cg1.innovation)
+        new_gene.weight = cg1.weight
+        new_gene.enabled = cg1.enabled
+        child_connections[new_gene.key] = new_gene
+
+    # ========== 处理节点基因 ==========
+    cdef set p1_node_keys = set(parent1_nodes.keys())
+    cdef set p2_node_keys = set(parent2_nodes.keys())
+    cdef set homologous_node_keys = p1_node_keys & p2_node_keys
+    cdef set disjoint_node_keys = p1_node_keys - p2_node_keys
+
+    # 处理同源节点基因
+    for node_key in homologous_node_keys:
+        ng1 = parent1_nodes[node_key]
+        ng2 = parent2_nodes[node_key]
+
+        new_node = node_gene_type(node_key)
+
+        # 随机选择 bias
+        r = fast_random()
+        if r > 0.5:
+            new_node.bias = ng1.bias
+        else:
+            new_node.bias = ng2.bias
+
+        # 随机选择 response
+        r = fast_random()
+        if r > 0.5:
+            new_node.response = ng1.response
+        else:
+            new_node.response = ng2.response
+
+        # 随机选择 activation
+        r = fast_random()
+        if r > 0.5:
+            new_node.activation = ng1.activation
+        else:
+            new_node.activation = ng2.activation
+
+        # 随机选择 aggregation
+        r = fast_random()
+        if r > 0.5:
+            new_node.aggregation = ng1.aggregation
+        else:
+            new_node.aggregation = ng2.aggregation
+
+        child_nodes[node_key] = new_node
+
+    # 处理 disjoint/excess 节点基因（只从 parent1 继承）
+    for node_key in disjoint_node_keys:
+        ng1 = parent1_nodes[node_key]
+        new_node = node_gene_type(node_key)
+        new_node.bias = ng1.bias
+        new_node.response = ng1.response
+        new_node.activation = ng1.activation
+        new_node.aggregation = ng1.aggregation
+        child_nodes[node_key] = new_node
