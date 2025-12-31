@@ -114,16 +114,32 @@ cdef class FastFeedForwardNetwork:
         cdef FastFeedForwardNetwork network = FastFeedForwardNetwork()
 
         # 获取输入输出键
-        input_keys = list(config.genome_config.input_keys)
-        output_keys = list(config.genome_config.output_keys)
+        input_keys = config.genome_config.input_keys
+        output_keys = config.genome_config.output_keys
 
-        network.num_inputs = len(input_keys)
-        network.num_outputs = len(output_keys)
+        cdef int num_inputs = len(input_keys)
+        cdef int num_outputs = len(output_keys)
+        network.num_inputs = num_inputs
+        network.num_outputs = num_outputs
         network.input_keys = np.array(input_keys, dtype=np.int32)
         network.output_keys = np.array(output_keys, dtype=np.int32)
 
-        # 获取启用的连接
-        connections = [cg.key for cg in genome.connections.values() if cg.enabled]
+        # 单次遍历：获取启用连接并同时构建 conn_map
+        # conn_map: 目标节点 -> [(源节点, 权重), ...]
+        cdef dict conn_map = {}
+        cdef list connections = []
+        cdef tuple key
+        cdef int inode, onode
+
+        for cg in genome.connections.values():
+            if cg.enabled:
+                key = cg.key
+                connections.append(key)
+                inode, onode = key
+                if onode not in conn_map:
+                    conn_map[onode] = [(inode, cg.weight)]
+                else:
+                    conn_map[onode].append((inode, cg.weight))
 
         # 获取拓扑层
         layers, required = feed_forward_layers(input_keys, output_keys, connections)
@@ -133,27 +149,18 @@ cdef class FastFeedForwardNetwork:
         # 其他节点: num_inputs ~ ...
         cdef dict id_to_idx = {}
         cdef int idx = 0
-        for key in input_keys:
-            id_to_idx[key] = idx
+        for key_int in input_keys:
+            id_to_idx[key_int] = idx
             idx += 1
 
-        # 按层顺序添加非输入节点
-        node_order = []
-        for layer in layers:
-            for node in layer:
-                id_to_idx[node] = idx
-                node_order.append(node)
-                idx += 1
+        # 计算非输入节点数量并预分配数组
+        cdef int num_nodes = sum(len(layer) for layer in layers)
 
-        network.id_to_idx = id_to_idx
-        network.num_nodes = len(node_order)
-
-        # 预分配值数组
-        total_nodes = network.num_inputs + network.num_nodes
-        network.values = np.zeros(total_nodes, dtype=DTYPE)
-
-        if network.num_nodes == 0:
+        if num_nodes == 0:
             # 无隐藏/输出节点（退化情况）
+            network.id_to_idx = id_to_idx
+            network.num_nodes = 0
+            network.values = np.zeros(num_inputs, dtype=DTYPE)
             network.node_ids = np.array([], dtype=np.int32)
             network.biases = np.array([], dtype=DTYPE)
             network.responses = np.array([], dtype=DTYPE)
@@ -163,14 +170,15 @@ cdef class FastFeedForwardNetwork:
             network.conn_weights = np.array([], dtype=DTYPE)
             return network
 
-        # 构建节点信息数组
-        network.node_ids = np.array(node_order, dtype=np.int32)
-        network.biases = np.zeros(network.num_nodes, dtype=DTYPE)
-        network.responses = np.zeros(network.num_nodes, dtype=DTYPE)
-        network.act_types = np.zeros(network.num_nodes, dtype=np.int32)
+        # 预分配节点相关数组
+        cdef np.ndarray[np.int32_t, ndim=1] node_ids = np.empty(num_nodes, dtype=np.int32)
+        cdef np.ndarray[DTYPE_t, ndim=1] biases = np.empty(num_nodes, dtype=DTYPE)
+        cdef np.ndarray[DTYPE_t, ndim=1] responses = np.empty(num_nodes, dtype=DTYPE)
+        cdef np.ndarray[np.int32_t, ndim=1] act_types = np.empty(num_nodes, dtype=np.int32)
+        cdef np.ndarray[np.int32_t, ndim=1] conn_indptr = np.empty(num_nodes + 1, dtype=np.int32)
 
         # 激活函数名到类型的映射
-        act_map = {
+        cdef dict act_map = {
             'tanh': ACT_TANH,
             'sigmoid': ACT_SIGMOID,
             'relu': ACT_RELU,
@@ -179,41 +187,66 @@ cdef class FastFeedForwardNetwork:
             'gauss': ACT_GAUSS,
         }
 
-        # 构建连接信息（CSR 格式）
-        conn_indptr = [0]
-        conn_sources = []
-        conn_weights = []
+        # 只保留 required 节点的连接（过滤 conn_map）
+        cdef set required_with_inputs = required.union(set(input_keys))
 
-        # 预处理连接映射：目标节点 -> [(源节点, 权重), ...]
-        conn_map = {}
-        required_with_inputs = required.union(set(input_keys))
-        for cg in genome.connections.values():
-            if not cg.enabled:
-                continue
-            inode, onode = cg.key
-            if inode in required_with_inputs and onode in id_to_idx:
-                if onode not in conn_map:
-                    conn_map[onode] = []
-                conn_map[onode].append((inode, cg.weight))
+        # 第一遍：计算总连接数并填充节点信息
+        cdef int i = 0
+        cdef int total_conns = 0
+        cdef list node_conns
 
-        # 按节点顺序构建 CSR 数组
-        for i, node in enumerate(node_order):
-            ng = genome.nodes[node]
-            network.biases[i] = ng.bias
-            network.responses[i] = ng.response
-            network.act_types[i] = act_map.get(ng.activation, ACT_TANH)
+        conn_indptr[0] = 0
+        for layer in layers:
+            for node in layer:
+                id_to_idx[node] = idx
+                node_ids[i] = node
 
-            # 该节点的输入连接
+                # 获取节点基因
+                ng = genome.nodes[node]
+                biases[i] = ng.bias
+                responses[i] = ng.response
+                act_types[i] = act_map.get(ng.activation, ACT_TANH)
+
+                # 计算该节点的有效连接数
+                if node in conn_map:
+                    node_conns = conn_map[node]
+                    for src, _ in node_conns:
+                        if src in required_with_inputs:
+                            total_conns += 1
+
+                conn_indptr[i + 1] = total_conns
+                idx += 1
+                i += 1
+
+        # 预分配连接数组
+        cdef np.ndarray[np.int32_t, ndim=1] conn_sources = np.empty(total_conns, dtype=np.int32)
+        cdef np.ndarray[DTYPE_t, ndim=1] conn_weights = np.empty(total_conns, dtype=DTYPE)
+
+        # 第二遍：填充连接数组
+        cdef int conn_idx = 0
+        cdef double weight
+
+        for i in range(num_nodes):
+            node = node_ids[i]
             if node in conn_map:
-                for inode, weight in conn_map[node]:
-                    conn_sources.append(id_to_idx[inode])
-                    conn_weights.append(weight)
+                node_conns = conn_map[node]
+                for src, weight in node_conns:
+                    if src in required_with_inputs:
+                        conn_sources[conn_idx] = id_to_idx[src]
+                        conn_weights[conn_idx] = weight
+                        conn_idx += 1
 
-            conn_indptr.append(len(conn_sources))
-
-        network.conn_indptr = np.array(conn_indptr, dtype=np.int32)
-        network.conn_sources = np.array(conn_sources, dtype=np.int32)
-        network.conn_weights = np.array(conn_weights, dtype=DTYPE)
+        # 设置网络属性
+        network.id_to_idx = id_to_idx
+        network.num_nodes = num_nodes
+        network.values = np.zeros(num_inputs + num_nodes, dtype=DTYPE)
+        network.node_ids = node_ids
+        network.biases = biases
+        network.responses = responses
+        network.act_types = act_types
+        network.conn_indptr = conn_indptr
+        network.conn_sources = conn_sources
+        network.conn_weights = conn_weights
 
         return network
 

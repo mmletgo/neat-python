@@ -14,6 +14,7 @@ class BaseGene:
     Handles functions shared by multiple types of genes (both node and connection),
     including crossover and calling mutation methods.
     """
+    __slots__ = ('key',)
 
     def __init__(self, key):
         self.key = key
@@ -113,6 +114,7 @@ class BaseGene:
 
 
 class DefaultNodeGene(BaseGene):
+    __slots__ = ('bias', 'response', 'activation', 'aggregation')
     _gene_attributes = [FloatAttribute('bias'),
                         FloatAttribute('response'),
                         StringAttribute('activation', options=''),
@@ -138,6 +140,7 @@ class DefaultNodeGene(BaseGene):
 # `product` aggregation function is rather more important than one giving
 # an output of 1 from the connection, for instance!)
 class DefaultConnectionGene(BaseGene):
+    __slots__ = ('innovation', 'weight', 'enabled')
     _gene_attributes = [FloatAttribute('weight'),
                         BoolAttribute('enabled')]
 

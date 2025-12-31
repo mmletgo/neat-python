@@ -51,11 +51,11 @@ class InnovationTracker:
     def get_innovation_number(self, input_node, output_node, mutation_type='add_connection'):
         """
         Get or assign an innovation number for a structural mutation.
-        
+
         If this exact mutation (same nodes and type) has already occurred in the
         current generation, returns the existing innovation number. Otherwise,
         increments the global counter and assigns a new innovation number.
-        
+
         Args:
             input_node: The input node ID for the connection
             output_node: The output node ID for the connection
@@ -64,10 +64,10 @@ class InnovationTracker:
                 - 'add_node_in': Connection from original input to new node
                 - 'add_node_out': Connection from new node to original output
                 - 'initial_connection': Connection in initial population
-        
+
         Returns:
             int: The innovation number for this structural mutation
-        
+
         Example:
             >>> tracker = InnovationTracker()
             >>> # First genome adds connection 1->2
@@ -84,17 +84,57 @@ class InnovationTracker:
             2
         """
         key = (input_node, output_node, mutation_type)
-        
+
         # Check if this innovation already occurred this generation
         if key in self.generation_innovations:
             return self.generation_innovations[key]
-        
+
         # New innovation - increment counter and record it
         self.global_counter += 1
         innovation_number = self.global_counter
         self.generation_innovations[key] = innovation_number
-        
+
         return innovation_number
+
+    def get_innovation_numbers_batch(self, connection_pairs: list, mutation_type: str = 'initial_connection') -> list:
+        """
+        批量获取多个连接的 innovation number
+
+        比循环调用 get_innovation_number 更高效，减少 Python 函数调用开销。
+        内部直接操作字典，避免重复的函数调用和 key 创建开销。
+
+        Args:
+            connection_pairs: 连接对列表 [(input_node, output_node), ...]
+            mutation_type: 变异类型（所有连接使用相同类型）
+
+        Returns:
+            innovation number 列表，与输入顺序对应
+
+        Example:
+            >>> tracker = InnovationTracker()
+            >>> pairs = [(1, 2), (1, 3), (2, 3), (1, 2)]  # 注意最后一个重复
+            >>> innovations = tracker.get_innovation_numbers_batch(pairs, 'initial_connection')
+            >>> print(innovations)
+            [1, 2, 3, 1]  # 相同连接获得相同的 innovation number
+        """
+        result = []
+        gen_innovations = self.generation_innovations
+
+        for input_node, output_node in connection_pairs:
+            key = (input_node, output_node, mutation_type)
+
+            # 直接字典查找，避免函数调用开销
+            existing = gen_innovations.get(key)
+            if existing is not None:
+                result.append(existing)
+            else:
+                # 新 innovation - 递增计数器并记录
+                self.global_counter += 1
+                innovation_number = self.global_counter
+                gen_innovations[key] = innovation_number
+                result.append(innovation_number)
+
+        return result
     
     def reset_generation(self):
         """

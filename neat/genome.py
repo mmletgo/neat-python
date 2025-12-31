@@ -360,18 +360,11 @@ class DefaultGenome:
 
             # 处理有效的同源基因 - 使用批量交叉
             if valid_homologous:
-                n_valid = len(valid_homologous)
-                # 提取属性到数组
-                p1_weights = np.empty(n_valid, dtype=np.float64)
-                p2_weights = np.empty(n_valid, dtype=np.float64)
-                p1_enabled = np.empty(n_valid, dtype=np.uint8)
-                p2_enabled = np.empty(n_valid, dtype=np.uint8)
-
-                for i, (_, cg1, cg2) in enumerate(valid_homologous):
-                    p1_weights[i] = cg1.weight
-                    p2_weights[i] = cg2.weight
-                    p1_enabled[i] = 1 if cg1.enabled else 0
-                    p2_enabled[i] = 1 if cg2.enabled else 0
+                # 使用列表推导式一次性构建数组，避免逐元素赋值循环
+                p1_weights = np.array([cg1.weight for _, cg1, _ in valid_homologous], dtype=np.float64)
+                p2_weights = np.array([cg2.weight for _, _, cg2 in valid_homologous], dtype=np.float64)
+                p1_enabled = np.array([cg1.enabled for _, cg1, _ in valid_homologous], dtype=np.uint8)
+                p2_enabled = np.array([cg2.enabled for _, _, cg2 in valid_homologous], dtype=np.uint8)
 
                 # 批量交叉
                 new_weights, new_enabled = fast_crossover_genes(
@@ -425,21 +418,15 @@ class DefaultGenome:
 
         # 处理同源节点 - 批量交叉
         if homologous_keys:
-            n_homologous = len(homologous_keys)
+            # 预先获取所有同源节点对，减少重复字典查找
+            homologous_nodes_p1 = [parent1_set[k] for k in homologous_keys]
+            homologous_nodes_p2 = [parent2_set[k] for k in homologous_keys]
 
-            # 提取属性到数组
-            p1_biases = np.empty(n_homologous, dtype=np.float64)
-            p2_biases = np.empty(n_homologous, dtype=np.float64)
-            p1_responses = np.empty(n_homologous, dtype=np.float64)
-            p2_responses = np.empty(n_homologous, dtype=np.float64)
-
-            for i, key in enumerate(homologous_keys):
-                ng1 = parent1_set[key]
-                ng2 = parent2_set[key]
-                p1_biases[i] = ng1.bias
-                p2_biases[i] = ng2.bias
-                p1_responses[i] = ng1.response
-                p2_responses[i] = ng2.response
+            # 使用列表推导式一次性构建数组，避免逐元素赋值循环
+            p1_biases = np.array([n.bias for n in homologous_nodes_p1], dtype=np.float64)
+            p2_biases = np.array([n.bias for n in homologous_nodes_p2], dtype=np.float64)
+            p1_responses = np.array([n.response for n in homologous_nodes_p1], dtype=np.float64)
+            p2_responses = np.array([n.response for n in homologous_nodes_p2], dtype=np.float64)
 
             # 批量交叉
             new_biases, new_responses = fast_crossover_node_genes(
@@ -449,8 +436,8 @@ class DefaultGenome:
             # 直接创建新节点对象（避免 copy() 调用）
             node_gene_type = config.node_gene_type
             for i, key in enumerate(homologous_keys):
-                ng1 = parent1_set[key]
-                ng2 = parent2_set[key]
+                ng1 = homologous_nodes_p1[i]
+                ng2 = homologous_nodes_p2[i]
                 new_node = node_gene_type(key)
                 new_node.bias = new_biases[i]
                 new_node.response = new_responses[i]
@@ -738,20 +725,17 @@ class DefaultGenome:
             disjoint_nodes = len(self_keys - other_keys) + len(other_keys - self_keys)
 
             if homologous_keys:
-                n_homologous = len(homologous_keys)
-                # 提取同源节点的属性到 NumPy 数组
-                biases1 = np.empty(n_homologous, dtype=np.float64)
-                biases2 = np.empty(n_homologous, dtype=np.float64)
-                responses1 = np.empty(n_homologous, dtype=np.float64)
-                responses2 = np.empty(n_homologous, dtype=np.float64)
+                # 预先获取所有同源节点对，减少重复字典查找
+                self_nodes = self.nodes
+                other_nodes = other.nodes
+                homologous_nodes_self = [self_nodes[k] for k in homologous_keys]
+                homologous_nodes_other = [other_nodes[k] for k in homologous_keys]
 
-                for i, key in enumerate(homologous_keys):
-                    n1 = self.nodes[key]
-                    n2 = other.nodes[key]
-                    biases1[i] = n1.bias
-                    biases2[i] = n2.bias
-                    responses1[i] = n1.response
-                    responses2[i] = n2.response
+                # 使用列表推导式一次性构建数组，避免逐元素赋值循环
+                biases1 = np.array([n.bias for n in homologous_nodes_self], dtype=np.float64)
+                biases2 = np.array([n.bias for n in homologous_nodes_other], dtype=np.float64)
+                responses1 = np.array([n.response for n in homologous_nodes_self], dtype=np.float64)
+                responses2 = np.array([n.response for n in homologous_nodes_other], dtype=np.float64)
 
                 # 使用 Cython 批量计算数值属性距离
                 node_distance = cython_fast_node_distance_v2(
@@ -759,9 +743,8 @@ class DefaultGenome:
                 )
 
                 # 加上字符串属性差异（activation 和 aggregation）
-                for key in homologous_keys:
-                    n1 = self.nodes[key]
-                    n2 = other.nodes[key]
+                # 使用缓存的节点对象，避免重复字典查找
+                for n1, n2 in zip(homologous_nodes_self, homologous_nodes_other):
                     if n1.activation != n2.activation:
                         node_distance += weight_coeff
                     if n1.aggregation != n2.aggregation:
@@ -781,20 +764,17 @@ class DefaultGenome:
             disjoint_connections = len(self_conn_keys - other_conn_keys) + len(other_conn_keys - self_conn_keys)
 
             if homologous_conn_keys:
-                n_homologous = len(homologous_conn_keys)
-                # 提取同源连接的属性到 NumPy 数组
-                weights1 = np.empty(n_homologous, dtype=np.float64)
-                weights2 = np.empty(n_homologous, dtype=np.float64)
-                enabled1 = np.empty(n_homologous, dtype=np.uint8)
-                enabled2 = np.empty(n_homologous, dtype=np.uint8)
+                # 预先获取所有同源连接对，减少重复字典查找
+                self_conns = self.connections
+                other_conns = other.connections
+                homologous_conns_self = [self_conns[k] for k in homologous_conn_keys]
+                homologous_conns_other = [other_conns[k] for k in homologous_conn_keys]
 
-                for i, key in enumerate(homologous_conn_keys):
-                    c1 = self.connections[key]
-                    c2 = other.connections[key]
-                    weights1[i] = c1.weight
-                    weights2[i] = c2.weight
-                    enabled1[i] = 1 if c1.enabled else 0
-                    enabled2[i] = 1 if c2.enabled else 0
+                # 使用列表推导式一次性构建数组，避免逐元素赋值循环
+                weights1 = np.array([c.weight for c in homologous_conns_self], dtype=np.float64)
+                weights2 = np.array([c.weight for c in homologous_conns_other], dtype=np.float64)
+                enabled1 = np.array([c.enabled for c in homologous_conns_self], dtype=np.uint8)
+                enabled2 = np.array([c.enabled for c in homologous_conns_other], dtype=np.uint8)
 
                 # 使用 Cython 批量计算连接距离
                 connection_distance = fast_connection_distance(
@@ -961,13 +941,10 @@ class DefaultGenome:
 
         n = len(connection_pairs)
 
-        # 获取所有连接的 innovation number
-        innovations = []
-        for input_id, output_id in connection_pairs:
-            innovation = config.innovation_tracker.get_innovation_number(
-                input_id, output_id, 'initial_connection'
-            )
-            innovations.append(innovation)
+        # 批量获取所有连接的 innovation number（减少函数调用开销）
+        innovations = config.innovation_tracker.get_innovation_numbers_batch(
+            connection_pairs, 'initial_connection'
+        )
 
         # 尝试使用 Cython 批量初始化
         if _CYTHON_AVAILABLE:
