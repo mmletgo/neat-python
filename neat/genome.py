@@ -793,30 +793,15 @@ class DefaultGenome:
             disjoint_nodes = len(self_keys - other_keys) + len(other_keys - self_keys)
 
             if homologous_keys:
-                # 预先获取所有同源节点对，减少重复字典查找
-                self_nodes = self.nodes
-                other_nodes = other.nodes
-                homologous_nodes_self = [self_nodes[k] for k in homologous_keys]
-                homologous_nodes_other = [other_nodes[k] for k in homologous_keys]
-
-                # 使用列表推导式一次性构建数组，避免逐元素赋值循环
-                biases1 = np.array([n.bias for n in homologous_nodes_self], dtype=np.float64)
-                biases2 = np.array([n.bias for n in homologous_nodes_other], dtype=np.float64)
-                responses1 = np.array([n.response for n in homologous_nodes_self], dtype=np.float64)
-                responses2 = np.array([n.response for n in homologous_nodes_other], dtype=np.float64)
-
-                # 使用 Cython 批量计算数值属性距离
-                node_distance = cython_fast_node_distance_v2(
-                    biases1, biases2, responses1, responses2, weight_coeff
+                # 使用 Cython 一次性计算所有节点属性距离（数值 + 字符串）
+                # 避免创建多个中间 numpy 数组
+                node_distance = fast_full_node_distance(
+                    [self.nodes[k] for k in homologous_keys],
+                    [other.nodes[k] for k in homologous_keys],
+                    config.activation_to_int,
+                    config.aggregation_to_int,
+                    weight_coeff
                 )
-
-                # 加上字符串属性差异（activation 和 aggregation）
-                # 使用缓存的节点对象，避免重复字典查找
-                for n1, n2 in zip(homologous_nodes_self, homologous_nodes_other):
-                    if n1.activation != n2.activation:
-                        node_distance += weight_coeff
-                    if n1.aggregation != n2.aggregation:
-                        node_distance += weight_coeff
 
             max_nodes = max(len(self.nodes), len(other.nodes))
             node_distance = (node_distance +
