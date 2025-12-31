@@ -3,13 +3,42 @@ import copy
 import sys
 from itertools import count
 from random import choice, random, shuffle
+from typing import Optional
+
+import numpy as np
 
 from neat.activations import ActivationFunctionSet
 from neat.aggregations import AggregationFunctionSet
 from neat.config import ConfigParameter, write_pretty_params
 from neat.genes import DefaultConnectionGene, DefaultNodeGene
-from neat.graphs import creates_cycle
 from neat.graphs import required_for_output
+
+# 尝试使用 Cython 优化版本的 creates_cycle
+try:
+    from neat._cython.fast_graphs import fast_creates_cycle as creates_cycle
+except ImportError:
+    from neat.graphs import creates_cycle
+
+# 尝试导入 Cython 优化的基因组操作函数
+_CYTHON_AVAILABLE = False
+try:
+    from neat._cython.fast_genome import (
+        MutationConfig,
+        fast_mutate_genome,
+        fast_genome_distance,
+        fast_node_distance as cython_fast_node_distance,
+    )
+    from neat._cython.fast_genes import (
+        fast_crossover_genes,
+        fast_crossover_node_genes,
+        fast_init_float_genes,
+        fast_init_bool_genes,
+        fast_connection_distance,
+        fast_node_distance as cython_fast_node_distance_v2,
+    )
+    _CYTHON_AVAILABLE = True
+except ImportError:
+    MutationConfig = None  # type: ignore
 
 
 class DefaultGenomeConfig:
@@ -84,10 +113,16 @@ class DefaultGenomeConfig:
             raise RuntimeError(error_string)
 
         self.node_indexer = None
-        
+
         # Innovation tracker will be set by Population/Reproduction
         # This enables same-generation deduplication per NEAT paper (Stanley & Miikkulainen, 2002)
         self.innovation_tracker = None
+
+        # 缓存 MutationConfig，避免每次变异都重新创建
+        # 在所有配置参数设置完毕后创建
+        self._mutation_config: Optional[MutationConfig] = None
+        if _CYTHON_AVAILABLE and MutationConfig is not None:
+            self._mutation_config = MutationConfig.from_neat_config(self)
 
     def add_activation(self, name, func):
         self.activation_defs.add(name, func)
@@ -147,10 +182,12 @@ class DefaultGenomeConfig:
             state['node_indexer'] = None
         else:
             state['_node_indexer_next_value'] = None
+        # MutationConfig 是 Cython 对象，可能无法 pickle，设为 None 后在 __setstate__ 中重建
+        state['_mutation_config'] = None
         return state
 
     def __setstate__(self, state):
-        """Restore config from pickled state, recreating node_indexer."""
+        """Restore config from pickled state, recreating node_indexer and MutationConfig."""
         _node_indexer_next_value = state.pop('_node_indexer_next_value', None)
         self.__dict__.update(state)
         # Recreate the count object starting from the saved next value
@@ -159,6 +196,11 @@ class DefaultGenomeConfig:
             self.node_indexer = count(_node_indexer_next_value)
         else:
             self.node_indexer = None
+        # 重建 MutationConfig
+        if _CYTHON_AVAILABLE and MutationConfig is not None:
+            self._mutation_config = MutationConfig.from_neat_config(self)
+        else:
+            self._mutation_config = None
 
 
 class DefaultGenome:
@@ -264,30 +306,185 @@ class DefaultGenome:
     def configure_crossover(self, genome1, genome2, config):
         """
         Configure a new genome by crossover from two parent genomes.
-        
+
         Implements NEAT paper (Stanley & Miikkulainen, 2002, p. 108) crossover:
         "When crossing over, the genes in both genomes with the same innovation
         numbers are lined up. Genes are randomly chosen from either parent at
         matching genes, whereas all excess or disjoint genes are always included
         from the more fit parent."
+
+        使用 Cython 优化：批量交叉同源基因，减少 Python 循环开销。
         """
         if genome1.fitness > genome2.fitness:
             parent1, parent2 = genome1, genome2
         else:
             parent1, parent2 = genome2, genome1
 
+        # 尝试使用 Cython 优化版本
+        if _CYTHON_AVAILABLE:
+            self._configure_crossover_fast(parent1, parent2, config)
+        else:
+            self._configure_crossover_slow(parent1, parent2, config)
+
+    def _configure_crossover_fast(self, parent1, parent2, config):
+        """
+        使用 Cython 优化的交叉操作
+
+        优化策略：
+        1. 批量交叉同源基因的数值属性（weight, enabled, bias, response）
+        2. 直接创建新基因对象而非复制再修改，减少 copy() 调用
+        """
+        # ========== 处理连接基因 ==========
+        # Build innovation number mappings for both parents
+        parent1_innovations = {cg.innovation: cg for cg in parent1.connections.values()}
+        parent2_innovations = {cg.innovation: cg for cg in parent2.connections.values()}
+
+        # 找出同源连接（按 innovation number）
+        p1_innovations_set = set(parent1_innovations.keys())
+        p2_innovations_set = set(parent2_innovations.keys())
+        homologous_innovations = list(p1_innovations_set & p2_innovations_set)
+        disjoint_innovations = p1_innovations_set - p2_innovations_set
+
+        # 处理同源连接基因 - 批量交叉
+        if homologous_innovations:
+            # 分离出 key 相同的同源基因和 key 不同的碰撞基因
+            valid_homologous = []
+            collision_innovations = []
+            for innovation_num in homologous_innovations:
+                cg1 = parent1_innovations[innovation_num]
+                cg2 = parent2_innovations[innovation_num]
+                if cg1.key == cg2.key:
+                    valid_homologous.append((innovation_num, cg1, cg2))
+                else:
+                    collision_innovations.append((innovation_num, cg1, cg2))
+
+            # 处理有效的同源基因 - 使用批量交叉
+            if valid_homologous:
+                n_valid = len(valid_homologous)
+                # 提取属性到数组
+                p1_weights = np.empty(n_valid, dtype=np.float64)
+                p2_weights = np.empty(n_valid, dtype=np.float64)
+                p1_enabled = np.empty(n_valid, dtype=np.uint8)
+                p2_enabled = np.empty(n_valid, dtype=np.uint8)
+
+                for i, (_, cg1, cg2) in enumerate(valid_homologous):
+                    p1_weights[i] = cg1.weight
+                    p2_weights[i] = cg2.weight
+                    p1_enabled[i] = 1 if cg1.enabled else 0
+                    p2_enabled[i] = 1 if cg2.enabled else 0
+
+                # 批量交叉
+                new_weights, new_enabled = fast_crossover_genes(
+                    p1_weights, p2_weights, p1_enabled, p2_enabled
+                )
+
+                # 直接创建新基因对象（避免 copy() 调用）
+                conn_gene_type = config.connection_gene_type
+                for i, (innovation_num, cg1, _) in enumerate(valid_homologous):
+                    new_gene = conn_gene_type(cg1.key, innovation=innovation_num)
+                    new_gene.weight = new_weights[i]
+                    new_gene.enabled = bool(new_enabled[i])
+                    self.connections[new_gene.key] = new_gene
+
+            # 处理碰撞基因（innovation 相同但 key 不同）- 警告并取 fitter parent
+            if collision_innovations:
+                import warnings
+                conn_gene_type = config.connection_gene_type
+                for innovation_num, cg1, cg2 in collision_innovations:
+                    warnings.warn(
+                        f"Innovation number collision: innovation {innovation_num} assigned to both "
+                        f"{cg1.key} and {cg2.key}. Treating as disjoint genes.",
+                        RuntimeWarning
+                    )
+                    # 直接创建而非复制
+                    new_gene = conn_gene_type(cg1.key, innovation=innovation_num)
+                    new_gene.weight = cg1.weight
+                    new_gene.enabled = cg1.enabled
+                    self.connections[new_gene.key] = new_gene
+
+        # 处理 disjoint/excess 连接基因（只来自 fitter parent）
+        # 这些必须复制，因为需要完全继承父代属性
+        conn_gene_type = config.connection_gene_type
+        for innovation_num in disjoint_innovations:
+            cg1 = parent1_innovations[innovation_num]
+            # 直接创建而非复制
+            new_gene = conn_gene_type(cg1.key, innovation=cg1.innovation)
+            new_gene.weight = cg1.weight
+            new_gene.enabled = cg1.enabled
+            self.connections[new_gene.key] = new_gene
+
+        # ========== 处理节点基因 ==========
+        parent1_set = parent1.nodes
+        parent2_set = parent2.nodes
+
+        # 找出同源节点
+        p1_keys = set(parent1_set.keys())
+        p2_keys = set(parent2_set.keys())
+        homologous_keys = list(p1_keys & p2_keys)
+        disjoint_keys = p1_keys - p2_keys
+
+        # 处理同源节点 - 批量交叉
+        if homologous_keys:
+            n_homologous = len(homologous_keys)
+
+            # 提取属性到数组
+            p1_biases = np.empty(n_homologous, dtype=np.float64)
+            p2_biases = np.empty(n_homologous, dtype=np.float64)
+            p1_responses = np.empty(n_homologous, dtype=np.float64)
+            p2_responses = np.empty(n_homologous, dtype=np.float64)
+
+            for i, key in enumerate(homologous_keys):
+                ng1 = parent1_set[key]
+                ng2 = parent2_set[key]
+                p1_biases[i] = ng1.bias
+                p2_biases[i] = ng2.bias
+                p1_responses[i] = ng1.response
+                p2_responses[i] = ng2.response
+
+            # 批量交叉
+            new_biases, new_responses = fast_crossover_node_genes(
+                p1_biases, p2_biases, p1_responses, p2_responses
+            )
+
+            # 直接创建新节点对象（避免 copy() 调用）
+            node_gene_type = config.node_gene_type
+            for i, key in enumerate(homologous_keys):
+                ng1 = parent1_set[key]
+                ng2 = parent2_set[key]
+                new_node = node_gene_type(key)
+                new_node.bias = new_biases[i]
+                new_node.response = new_responses[i]
+                # 字符串属性需要单独随机选择
+                new_node.activation = ng1.activation if random() > 0.5 else ng2.activation
+                new_node.aggregation = ng1.aggregation if random() > 0.5 else ng2.aggregation
+                self.nodes[key] = new_node
+
+        # 处理 disjoint/excess 节点（只来自 fitter parent）
+        node_gene_type = config.node_gene_type
+        for key in disjoint_keys:
+            ng1 = parent1_set[key]
+            # 直接创建而非复制
+            new_node = node_gene_type(key)
+            new_node.bias = ng1.bias
+            new_node.response = ng1.response
+            new_node.activation = ng1.activation
+            new_node.aggregation = ng1.aggregation
+            self.nodes[key] = new_node
+
+    def _configure_crossover_slow(self, parent1, parent2, config):
+        """原始的逐基因交叉（回退方案）"""
         # Inherit connection genes by innovation number
         # Build innovation number mappings for both parents
         parent1_innovations = {cg.innovation: cg for cg in parent1.connections.values()}
         parent2_innovations = {cg.innovation: cg for cg in parent2.connections.values()}
-        
+
         # Get all innovation numbers from both parents
         all_innovations = set(parent1_innovations.keys()) | set(parent2_innovations.keys())
-        
+
         for innovation_num in all_innovations:
             cg1 = parent1_innovations.get(innovation_num)
             cg2 = parent2_innovations.get(innovation_num)
-            
+
             if cg1 is not None and cg2 is not None:
                 # Matching genes: homologous genes are lined up by innovation number
                 # Randomly inherit from either parent
@@ -302,22 +499,13 @@ class DefaultGenome:
                     )
                     # Take the gene from the fitter parent
                     new_gene = cg1.copy()
-                    # For feed-forward networks, check if this connection would create a cycle
-                    if config.feed_forward and creates_cycle(list(self.connections), new_gene.key):
-                        continue
                     self.connections[new_gene.key] = new_gene
                 else:
                     new_gene = cg1.crossover(cg2)
-                    # For feed-forward networks, check if this connection would create a cycle
-                    if config.feed_forward and creates_cycle(list(self.connections), new_gene.key):
-                        continue
                     self.connections[new_gene.key] = new_gene
             elif cg1 is not None:
                 # Disjoint or excess gene from fittest parent (parent1)
                 new_gene = cg1.copy()
-                # For feed-forward networks, check if this connection would create a cycle
-                if config.feed_forward and creates_cycle(list(self.connections), new_gene.key):
-                    continue
                 self.connections[new_gene.key] = new_gene
             # Note: genes only in parent2 (less fit) are not inherited
 
@@ -365,13 +553,16 @@ class DefaultGenome:
             if random() < config.conn_delete_prob:
                 self.mutate_delete_connection()
 
-        # Mutate connection genes.
-        for cg in self.connections.values():
-            cg.mutate(config)
-
-        # Mutate node genes (bias, response, etc.).
-        for ng in self.nodes.values():
-            ng.mutate(config)
+        # Mutate connection and node genes.
+        # 使用 Cython 优化的批量变异（如果可用）
+        if _CYTHON_AVAILABLE and hasattr(config, '_mutation_config') and config._mutation_config is not None:
+            fast_mutate_genome(self.nodes, self.connections, config._mutation_config)
+        else:
+            # 回退到逐个变异
+            for cg in self.connections.values():
+                cg.mutate(config)
+            for ng in self.nodes.values():
+                ng.mutate(config)
 
     def mutate_add_node(self, config):
         """
@@ -524,8 +715,100 @@ class DefaultGenome:
         """
         Returns the genetic distance between this genome and the other. This distance value
         is used to compute genome compatibility for speciation.
-        """
 
+        使用 Cython 优化：批量计算同源基因的距离，减少 Python 循环开销。
+        """
+        # 尝试使用 Cython 优化版本
+        if _CYTHON_AVAILABLE:
+            return self._distance_fast(other, config)
+        else:
+            return self._distance_slow(other, config)
+
+    def _distance_fast(self, other, config) -> float:
+        """使用 Cython 优化的距离计算"""
+        weight_coeff = config.compatibility_weight_coefficient
+
+        # ========== 计算节点基因距离 ==========
+        node_distance = 0.0
+        if self.nodes or other.nodes:
+            # 找出同源节点（两个基因组都有的节点）
+            self_keys = set(self.nodes.keys())
+            other_keys = set(other.nodes.keys())
+            homologous_keys = list(self_keys & other_keys)
+            disjoint_nodes = len(self_keys - other_keys) + len(other_keys - self_keys)
+
+            if homologous_keys:
+                n_homologous = len(homologous_keys)
+                # 提取同源节点的属性到 NumPy 数组
+                biases1 = np.empty(n_homologous, dtype=np.float64)
+                biases2 = np.empty(n_homologous, dtype=np.float64)
+                responses1 = np.empty(n_homologous, dtype=np.float64)
+                responses2 = np.empty(n_homologous, dtype=np.float64)
+
+                for i, key in enumerate(homologous_keys):
+                    n1 = self.nodes[key]
+                    n2 = other.nodes[key]
+                    biases1[i] = n1.bias
+                    biases2[i] = n2.bias
+                    responses1[i] = n1.response
+                    responses2[i] = n2.response
+
+                # 使用 Cython 批量计算数值属性距离
+                node_distance = cython_fast_node_distance_v2(
+                    biases1, biases2, responses1, responses2, weight_coeff
+                )
+
+                # 加上字符串属性差异（activation 和 aggregation）
+                for key in homologous_keys:
+                    n1 = self.nodes[key]
+                    n2 = other.nodes[key]
+                    if n1.activation != n2.activation:
+                        node_distance += weight_coeff
+                    if n1.aggregation != n2.aggregation:
+                        node_distance += weight_coeff
+
+            max_nodes = max(len(self.nodes), len(other.nodes))
+            node_distance = (node_distance +
+                             config.compatibility_disjoint_coefficient * disjoint_nodes) / max_nodes
+
+        # ========== 计算连接基因距离 ==========
+        connection_distance = 0.0
+        if self.connections or other.connections:
+            # 找出同源连接
+            self_conn_keys = set(self.connections.keys())
+            other_conn_keys = set(other.connections.keys())
+            homologous_conn_keys = list(self_conn_keys & other_conn_keys)
+            disjoint_connections = len(self_conn_keys - other_conn_keys) + len(other_conn_keys - self_conn_keys)
+
+            if homologous_conn_keys:
+                n_homologous = len(homologous_conn_keys)
+                # 提取同源连接的属性到 NumPy 数组
+                weights1 = np.empty(n_homologous, dtype=np.float64)
+                weights2 = np.empty(n_homologous, dtype=np.float64)
+                enabled1 = np.empty(n_homologous, dtype=np.uint8)
+                enabled2 = np.empty(n_homologous, dtype=np.uint8)
+
+                for i, key in enumerate(homologous_conn_keys):
+                    c1 = self.connections[key]
+                    c2 = other.connections[key]
+                    weights1[i] = c1.weight
+                    weights2[i] = c2.weight
+                    enabled1[i] = 1 if c1.enabled else 0
+                    enabled2[i] = 1 if c2.enabled else 0
+
+                # 使用 Cython 批量计算连接距离
+                connection_distance = fast_connection_distance(
+                    weights1, weights2, enabled1, enabled2, weight_coeff
+                )
+
+            max_conn = max(len(self.connections), len(other.connections))
+            connection_distance = (connection_distance +
+                                   config.compatibility_disjoint_coefficient * disjoint_connections) / max_conn
+
+        return node_distance + connection_distance
+
+    def _distance_slow(self, other, config) -> float:
+        """原始的逐基因距离计算（回退方案）"""
         # Compute node gene distance component.
         node_distance = 0.0
         if self.nodes or other.nodes:
@@ -568,8 +851,7 @@ class DefaultGenome:
                                    (config.compatibility_disjoint_coefficient *
                                     disjoint_connections)) / max_conn
 
-        distance = node_distance + connection_distance
-        return distance
+        return node_distance + connection_distance
 
     def size(self):
         """
@@ -663,62 +945,109 @@ class DefaultGenome:
 
         return connections
 
+    def _batch_create_connections(self, config, connection_pairs: list):
+        """
+        批量创建连接基因。
+
+        使用 Cython 优化批量初始化连接属性（weight, enabled），
+        减少 Python 循环和 getattr 调用开销。
+
+        Args:
+            config: 基因组配置
+            connection_pairs: 连接对列表 [(input_id, output_id), ...]
+        """
+        if not connection_pairs:
+            return
+
+        n = len(connection_pairs)
+
+        # 获取所有连接的 innovation number
+        innovations = []
+        for input_id, output_id in connection_pairs:
+            innovation = config.innovation_tracker.get_innovation_number(
+                input_id, output_id, 'initial_connection'
+            )
+            innovations.append(innovation)
+
+        # 尝试使用 Cython 批量初始化
+        if _CYTHON_AVAILABLE:
+            # 批量生成 weight 值
+            weights = fast_init_float_genes(
+                n,
+                getattr(config, 'weight_init_mean', 0.0),
+                getattr(config, 'weight_init_stdev', 1.0),
+                getattr(config, 'weight_min_value', -30.0),
+                getattr(config, 'weight_max_value', 30.0),
+                getattr(config, 'weight_init_type', 'gaussian')
+            )
+
+            # 批量生成 enabled 值
+            enabled_arr = fast_init_bool_genes(
+                n,
+                getattr(config, 'enabled_default', 'true')
+            )
+
+            # 创建连接基因并设置属性
+            for i, (input_id, output_id) in enumerate(connection_pairs):
+                key = (input_id, output_id)
+                connection = config.connection_gene_type(key, innovation=innovations[i])
+                connection.weight = weights[i]
+                connection.enabled = bool(enabled_arr[i])
+                self.connections[key] = connection
+        else:
+            # 回退到逐个创建
+            for i, (input_id, output_id) in enumerate(connection_pairs):
+                connection = self.create_connection(config, input_id, output_id, innovations[i])
+                self.connections[connection.key] = connection
+
     def connect_full_nodirect(self, config):
         """
         Create a fully-connected genome
         (except without direct input-output unless no hidden nodes).
+
+        使用批量初始化优化性能。
         """
         assert config.innovation_tracker is not None, "Innovation tracker must be set"
-        for input_id, output_id in self.compute_full_connections(config, False):
-            innovation = config.innovation_tracker.get_innovation_number(
-                input_id, output_id, 'initial_connection'
-            )
-            connection = self.create_connection(config, input_id, output_id, innovation)
-            self.connections[connection.key] = connection
+        connection_pairs = self.compute_full_connections(config, False)
+        self._batch_create_connections(config, connection_pairs)
 
     def connect_full_direct(self, config):
-        """ Create a fully-connected genome, including direct input-output connections. """
+        """
+        Create a fully-connected genome, including direct input-output connections.
+
+        使用批量初始化优化性能。
+        """
         assert config.innovation_tracker is not None, "Innovation tracker must be set"
-        for input_id, output_id in self.compute_full_connections(config, True):
-            innovation = config.innovation_tracker.get_innovation_number(
-                input_id, output_id, 'initial_connection'
-            )
-            connection = self.create_connection(config, input_id, output_id, innovation)
-            self.connections[connection.key] = connection
+        connection_pairs = self.compute_full_connections(config, True)
+        self._batch_create_connections(config, connection_pairs)
 
     def connect_partial_nodirect(self, config):
         """
         Create a partially-connected genome,
         with (unless no hidden nodes) no direct input-output connections.
+
+        使用批量初始化优化性能。
         """
         assert 0 <= config.connection_fraction <= 1
         assert config.innovation_tracker is not None, "Innovation tracker must be set"
         all_connections = self.compute_full_connections(config, False)
         shuffle(all_connections)
         num_to_add = int(round(len(all_connections) * config.connection_fraction))
-        for input_id, output_id in all_connections[:num_to_add]:
-            innovation = config.innovation_tracker.get_innovation_number(
-                input_id, output_id, 'initial_connection'
-            )
-            connection = self.create_connection(config, input_id, output_id, innovation)
-            self.connections[connection.key] = connection
+        self._batch_create_connections(config, all_connections[:num_to_add])
 
     def connect_partial_direct(self, config):
         """
         Create a partially-connected genome,
         including (possibly) direct input-output connections.
+
+        使用批量初始化优化性能。
         """
         assert 0 <= config.connection_fraction <= 1
         assert config.innovation_tracker is not None, "Innovation tracker must be set"
         all_connections = self.compute_full_connections(config, True)
         shuffle(all_connections)
         num_to_add = int(round(len(all_connections) * config.connection_fraction))
-        for input_id, output_id in all_connections[:num_to_add]:
-            innovation = config.innovation_tracker.get_innovation_number(
-                input_id, output_id, 'initial_connection'
-            )
-            connection = self.create_connection(config, input_id, output_id, innovation)
-            self.connections[connection.key] = connection
+        self._batch_create_connections(config, all_connections[:num_to_add])
 
     def get_pruned_copy(self, genome_config):
         used_node_genes, used_connection_genes = get_pruned_genes(self.nodes, self.connections,

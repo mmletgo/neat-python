@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=61.0", "wheel", "cython>=3.0.0", "numpy>=1.20.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -46,6 +46,12 @@ Issues = "https://github.com/CodeReclaimers/neat-python/issues"
 Changelog = "https://github.com/CodeReclaimers/neat-python/blob/master/CHANGELOG.md"
 
 [project.optional-dependencies]
+# Cython optimization dependencies
+cython = [
+    "cython>=3.0.0",
+    "numpy>=1.20.0",
+]
+
 # Development dependencies
 dev = [
     "pytest>=7.0",
@@ -79,10 +85,11 @@ all = [
 
 [tool.setuptools]
 # Package discovery
-packages = ["neat", "neat.nn", "neat.iznn", "neat.ctrnn", "neat.export"]
+packages = ["neat", "neat.nn", "neat.iznn", "neat.ctrnn", "neat.export", "neat._cython"]
 
 [tool.setuptools.package-data]
 neat = ["py.typed"]
+"neat._cython" = ["*.pyx", "*.pxd"]
 
 # Pytest configuration
 [tool.pytest.ini_options]
