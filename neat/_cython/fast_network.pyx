@@ -257,24 +257,33 @@ cdef class FastFeedForwardNetwork:
 
         return network
 
-    def activate(self, list inputs):
+    def activate(self, inputs):
         """
         前向传播（Python 接口）
 
         Args:
-            inputs: 输入值列表
+            inputs: 输入值列表或 ndarray
 
         Returns:
             输出值列表
         """
-        if len(inputs) != self.num_inputs:
-            raise RuntimeError(f"Expected {self.num_inputs} inputs, got {len(inputs)}")
-
-        # 设置输入值
         cdef int i
         cdef np.ndarray[DTYPE_t, ndim=1] values = self.values
-        for i in range(self.num_inputs):
-            values[i] = inputs[i]
+        cdef np.ndarray[DTYPE_t, ndim=1] input_arr
+
+        # 支持 list 和 ndarray 输入
+        if isinstance(inputs, np.ndarray):
+            if len(inputs) != self.num_inputs:
+                raise RuntimeError(f"Expected {self.num_inputs} inputs, got {len(inputs)}")
+            # 直接复制 ndarray
+            input_arr = inputs.astype(DTYPE, copy=False)
+            values[:self.num_inputs] = input_arr
+        else:
+            # 原有的 list 处理逻辑
+            if len(inputs) != self.num_inputs:
+                raise RuntimeError(f"Expected {self.num_inputs} inputs, got {len(inputs)}")
+            for i in range(self.num_inputs):
+                values[i] = inputs[i]
 
         # 调用 Cython 优化的前向传播
         self._forward_pass()

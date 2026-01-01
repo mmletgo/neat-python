@@ -944,3 +944,61 @@ cpdef void fast_configure_crossover(
         new_node.activation = ng1.activation
         new_node.aggregation = ng1.aggregation
         child_nodes[node_key] = new_node
+
+
+# ============================================================================
+# 快速计算完全连接列表
+# ============================================================================
+
+def fast_compute_full_connections(
+    list input_keys,
+    list hidden_nodes,
+    list output_nodes,
+    bint direct,
+    bint feed_forward
+) -> list:
+    """
+    快速计算完全连接列表
+
+    Args:
+        input_keys: 输入节点 ID 列表
+        hidden_nodes: 隐藏节点 ID 列表
+        output_nodes: 输出节点 ID 列表
+        direct: 是否直接连接输入到输出
+        feed_forward: 是否前馈网络
+
+    Returns:
+        连接对列表 [(input_id, output_id), ...]
+    """
+    cdef list connections = []
+    cdef int input_id, h, output_id, i
+    cdef int n_inputs = len(input_keys)
+    cdef int n_hidden = len(hidden_nodes)
+    cdef int n_outputs = len(output_nodes)
+
+    if n_hidden > 0:
+        # 输入 -> 隐藏
+        for input_id in input_keys:
+            for h in hidden_nodes:
+                connections.append((input_id, h))
+
+        # 隐藏 -> 输出
+        for h in hidden_nodes:
+            for output_id in output_nodes:
+                connections.append((h, output_id))
+
+    if direct or n_hidden == 0:
+        # 输入 -> 输出（直接连接）
+        for input_id in input_keys:
+            for output_id in output_nodes:
+                connections.append((input_id, output_id))
+
+    # 递归网络的自连接
+    if not feed_forward:
+        # 包含所有节点（隐藏 + 输出）
+        for h in hidden_nodes:
+            connections.append((h, h))
+        for output_id in output_nodes:
+            connections.append((output_id, output_id))
+
+    return connections

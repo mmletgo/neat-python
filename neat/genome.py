@@ -21,6 +21,7 @@ except ImportError:
 
 # 尝试导入 Cython 优化的基因组操作函数
 _CYTHON_AVAILABLE = False
+_FAST_CONNECTIONS_AVAILABLE = False
 try:
     from neat._cython.fast_genome import (
         MutationConfig,
@@ -29,7 +30,9 @@ try:
         fast_node_distance as cython_fast_node_distance,
         fast_genome_distance_full,
         fast_configure_crossover,
+        fast_compute_full_connections,
     )
+    _FAST_CONNECTIONS_AVAILABLE = True
     from neat._cython.fast_genes import (
         fast_crossover_genes,
         fast_crossover_node_genes,
@@ -767,6 +770,17 @@ class DefaultGenome:
         """
         hidden = [i for i in self.nodes if i not in config.output_keys]
         output = [i for i in self.nodes if i in config.output_keys]
+
+        if _FAST_CONNECTIONS_AVAILABLE:
+            return fast_compute_full_connections(
+                config.input_keys,
+                hidden,
+                output,
+                direct,
+                config.feed_forward
+            )
+
+        # 原有的 Python 实现作为回退
         connections = []
         if hidden:
             for input_id in config.input_keys:
