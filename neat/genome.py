@@ -841,16 +841,16 @@ class DefaultGenome:
             )
 
             # 使用 Cython 批量创建连接基因（绕过 __init__ 断言检查）
+            # 直接返回字典，使用 update 合并，避免 Python 层遍历
             if _GENE_FACTORY_AVAILABLE:
-                new_genes = create_connection_genes_batch(
+                new_genes_dict = create_connection_genes_batch(
                     config.connection_gene_type,
                     connection_pairs,
                     innovations,
                     weights,
                     enabled_arr
                 )
-                for gene in new_genes:
-                    self.connections[gene.key] = gene
+                self.connections.update(new_genes_dict)
             else:
                 # 回退到逐个创建（仍使用批量生成的属性值）
                 for i, (input_id, output_id) in enumerate(connection_pairs):

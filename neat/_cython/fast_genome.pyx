@@ -814,34 +814,28 @@ cpdef void fast_configure_crossover(
     cdef int innovation_num
     cdef int node_key
 
-    # ========== 处理连接基因 ==========
-    # 建立 innovation number 到连接基因的映射
-    cdef dict parent1_innovations = {}
+    # ========== 处理连接基因（优化版：避免集合操作）==========
+    # 只构建 parent2 的 innovation 映射
     cdef dict parent2_innovations = {}
-
-    for key in parent1_connections:
-        cg1 = parent1_connections[key]
-        parent1_innovations[cg1.innovation] = cg1
-
     for key in parent2_connections:
         cg2 = parent2_connections[key]
         parent2_innovations[cg2.innovation] = cg2
 
-    # 找出同源和 disjoint innovations
-    cdef set p1_innovations_set = set(parent1_innovations.keys())
-    cdef set p2_innovations_set = set(parent2_innovations.keys())
-    cdef set homologous_innovations_set = p1_innovations_set & p2_innovations_set
-    cdef set disjoint_innovations_set = p1_innovations_set - p2_innovations_set
+    # 遍历 parent1，同时处理同源和 disjoint 基因
+    for key in parent1_connections:
+        cg1 = parent1_connections[key]
+        cg2 = parent2_innovations.get(cg1.innovation)
 
-    # 处理同源连接基因
-    for innovation_num in homologous_innovations_set:
-        cg1 = parent1_innovations[innovation_num]
-        cg2 = parent2_innovations[innovation_num]
-
-        # 检查 key 是否相同（处理 innovation 碰撞）
-        if cg1.key != cg2.key:
+        if cg2 is None:
+            # Disjoint/excess 基因：只从 parent1 继承
+            new_gene = object.__new__(conn_gene_type)
+            new_gene.key = cg1.key
+            new_gene.innovation = cg1.innovation
+            new_gene.weight = cg1.weight
+            new_gene.enabled = cg1.enabled
+            child_connections[new_gene.key] = new_gene
+        elif cg1.key != cg2.key:
             # Innovation 碰撞：当作 disjoint 处理，只取 parent1
-            # 使用 object.__new__() 绕过 __init__ 断言检查
             new_gene = object.__new__(conn_gene_type)
             new_gene.key = cg1.key
             new_gene.innovation = cg1.innovation
@@ -850,10 +844,9 @@ cpdef void fast_configure_crossover(
             child_connections[new_gene.key] = new_gene
         else:
             # 同源基因：随机选择属性
-            # 使用 object.__new__() 绕过 __init__ 断言检查
             new_gene = object.__new__(conn_gene_type)
             new_gene.key = cg1.key
-            new_gene.innovation = innovation_num
+            new_gene.innovation = cg1.innovation
 
             # 随机选择 weight
             r = fast_random()
@@ -877,73 +870,55 @@ cpdef void fast_configure_crossover(
 
             child_connections[new_gene.key] = new_gene
 
-    # 处理 disjoint/excess 连接基因（只从 parent1 继承）
-    for innovation_num in disjoint_innovations_set:
-        cg1 = parent1_innovations[innovation_num]
-        # 使用 object.__new__() 绕过 __init__ 断言检查
-        new_gene = object.__new__(conn_gene_type)
-        new_gene.key = cg1.key
-        new_gene.innovation = cg1.innovation
-        new_gene.weight = cg1.weight
-        new_gene.enabled = cg1.enabled
-        child_connections[new_gene.key] = new_gene
-
-    # ========== 处理节点基因 ==========
-    cdef set p1_node_keys = set(parent1_nodes.keys())
-    cdef set p2_node_keys = set(parent2_nodes.keys())
-    cdef set homologous_node_keys = p1_node_keys & p2_node_keys
-    cdef set disjoint_node_keys = p1_node_keys - p2_node_keys
-
-    # 处理同源节点基因
-    for node_key in homologous_node_keys:
+    # ========== 处理节点基因（优化版：避免集合操作）==========
+    # 遍历 parent1，同时处理同源和 disjoint 基因
+    for node_key in parent1_nodes:
         ng1 = parent1_nodes[node_key]
-        ng2 = parent2_nodes[node_key]
+        ng2 = parent2_nodes.get(node_key)
 
-        # 使用 object.__new__() 绕过 __init__ 断言检查
-        new_node = object.__new__(node_gene_type)
-        new_node.key = node_key
-
-        # 随机选择 bias
-        r = fast_random()
-        if r > 0.5:
+        if ng2 is None:
+            # Disjoint/excess 基因：只从 parent1 继承
+            new_node = object.__new__(node_gene_type)
+            new_node.key = node_key
             new_node.bias = ng1.bias
-        else:
-            new_node.bias = ng2.bias
-
-        # 随机选择 response
-        r = fast_random()
-        if r > 0.5:
             new_node.response = ng1.response
-        else:
-            new_node.response = ng2.response
-
-        # 随机选择 activation
-        r = fast_random()
-        if r > 0.5:
             new_node.activation = ng1.activation
-        else:
-            new_node.activation = ng2.activation
-
-        # 随机选择 aggregation
-        r = fast_random()
-        if r > 0.5:
             new_node.aggregation = ng1.aggregation
+            child_nodes[node_key] = new_node
         else:
-            new_node.aggregation = ng2.aggregation
+            # 同源基因：随机选择属性
+            new_node = object.__new__(node_gene_type)
+            new_node.key = node_key
 
-        child_nodes[node_key] = new_node
+            # 随机选择 bias
+            r = fast_random()
+            if r > 0.5:
+                new_node.bias = ng1.bias
+            else:
+                new_node.bias = ng2.bias
 
-    # 处理 disjoint/excess 节点基因（只从 parent1 继承）
-    for node_key in disjoint_node_keys:
-        ng1 = parent1_nodes[node_key]
-        # 使用 object.__new__() 绕过 __init__ 断言检查
-        new_node = object.__new__(node_gene_type)
-        new_node.key = node_key
-        new_node.bias = ng1.bias
-        new_node.response = ng1.response
-        new_node.activation = ng1.activation
-        new_node.aggregation = ng1.aggregation
-        child_nodes[node_key] = new_node
+            # 随机选择 response
+            r = fast_random()
+            if r > 0.5:
+                new_node.response = ng1.response
+            else:
+                new_node.response = ng2.response
+
+            # 随机选择 activation
+            r = fast_random()
+            if r > 0.5:
+                new_node.activation = ng1.activation
+            else:
+                new_node.activation = ng2.activation
+
+            # 随机选择 aggregation
+            r = fast_random()
+            if r > 0.5:
+                new_node.aggregation = ng1.aggregation
+            else:
+                new_node.aggregation = ng2.aggregation
+
+            child_nodes[node_key] = new_node
 
 
 # ============================================================================
@@ -958,7 +933,7 @@ def fast_compute_full_connections(
     bint feed_forward
 ) -> list:
     """
-    快速计算完全连接列表
+    快速计算完全连接列表（预分配版本）
 
     Args:
         input_keys: 输入节点 ID 列表
@@ -970,35 +945,53 @@ def fast_compute_full_connections(
     Returns:
         连接对列表 [(input_id, output_id), ...]
     """
-    cdef list connections = []
-    cdef int input_id, h, output_id, i
+    cdef int input_id, h, output_id, idx
     cdef int n_inputs = len(input_keys)
     cdef int n_hidden = len(hidden_nodes)
     cdef int n_outputs = len(output_nodes)
+
+    # 预计算总连接数
+    cdef int total = 0
+    if n_hidden > 0:
+        total += n_inputs * n_hidden  # 输入 -> 隐藏
+        total += n_hidden * n_outputs  # 隐藏 -> 输出
+    if direct or n_hidden == 0:
+        total += n_inputs * n_outputs  # 输入 -> 输出
+    if not feed_forward:
+        total += n_hidden + n_outputs  # 自连接
+
+    # 预分配列表
+    cdef list connections = [None] * total
+    idx = 0
 
     if n_hidden > 0:
         # 输入 -> 隐藏
         for input_id in input_keys:
             for h in hidden_nodes:
-                connections.append((input_id, h))
+                connections[idx] = (input_id, h)
+                idx += 1
 
         # 隐藏 -> 输出
         for h in hidden_nodes:
             for output_id in output_nodes:
-                connections.append((h, output_id))
+                connections[idx] = (h, output_id)
+                idx += 1
 
     if direct or n_hidden == 0:
         # 输入 -> 输出（直接连接）
         for input_id in input_keys:
             for output_id in output_nodes:
-                connections.append((input_id, output_id))
+                connections[idx] = (input_id, output_id)
+                idx += 1
 
     # 递归网络的自连接
     if not feed_forward:
         # 包含所有节点（隐藏 + 输出）
         for h in hidden_nodes:
-            connections.append((h, h))
+            connections[idx] = (h, h)
+            idx += 1
         for output_id in output_nodes:
-            connections.append((output_id, output_id))
+            connections[idx] = (output_id, output_id)
+            idx += 1
 
     return connections

@@ -29,3 +29,5 @@ venv
 build
 dist
 neat_python.egg-info
+*.c
+*.so

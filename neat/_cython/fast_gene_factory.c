@@ -2188,6 +2188,9 @@ static CYTHON_INLINE void __Pyx_SafeReleaseBuffer(Py_buffer* info);
 static Py_ssize_t __Pyx_minusones[] = { -1, -1, -1, -1, -1, -1, -1, -1 };
 static Py_ssize_t __Pyx_zeros[] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
+/* RaiseUnexpectedTypeError.proto */
+static int __Pyx_RaiseUnexpectedTypeError(const char *expected, PyObject *obj);
+
 /* PyObjectFastCallMethod.proto */
 #if CYTHON_VECTORCALL && PY_VERSION_HEX >= 0x03090000
 #define __Pyx_PyObject_FastCallMethod(name, args, nargsf) PyObject_VectorcallMethod(name, args, nargsf, NULL)
@@ -2878,7 +2881,7 @@ typedef struct {
   __Pyx_CachedCFunction __pyx_umethod_PyDict_Type_pop;
   __Pyx_CachedCFunction __pyx_umethod_PyDict_Type_values;
   PyObject *__pyx_codeobj_tab[4];
-  PyObject *__pyx_string_tab[59];
+  PyObject *__pyx_string_tab[60];
 /* #### Code section: module_state_contents ### */
 /* CommonTypesMetaclass.module_state_decls */
 PyTypeObject *__pyx_CommonTypesMetaclassType;
@@ -2940,44 +2943,45 @@ static __pyx_mstatetype * const __pyx_mstate_global = &__pyx_mstate_global_stati
 #define __pyx_n_u_create_node_genes_batch __pyx_string_tab[18]
 #define __pyx_n_u_create_single_connection_gene __pyx_string_tab[19]
 #define __pyx_n_u_create_single_node_gene __pyx_string_tab[20]
-#define __pyx_n_u_enabled __pyx_string_tab[21]
-#define __pyx_n_u_float64 __pyx_string_tab[22]
-#define __pyx_n_u_func __pyx_string_tab[23]
-#define __pyx_n_u_gene __pyx_string_tab[24]
-#define __pyx_n_u_i __pyx_string_tab[25]
-#define __pyx_n_u_innovation __pyx_string_tab[26]
-#define __pyx_n_u_innovations __pyx_string_tab[27]
-#define __pyx_n_u_is_coroutine __pyx_string_tab[28]
-#define __pyx_n_u_items __pyx_string_tab[29]
-#define __pyx_n_u_key __pyx_string_tab[30]
-#define __pyx_n_u_keys __pyx_string_tab[31]
-#define __pyx_n_u_list __pyx_string_tab[32]
-#define __pyx_n_u_main __pyx_string_tab[33]
-#define __pyx_n_u_module __pyx_string_tab[34]
-#define __pyx_n_u_n __pyx_string_tab[35]
-#define __pyx_n_u_name __pyx_string_tab[36]
-#define __pyx_n_u_neat__cython_fast_gene_factory __pyx_string_tab[37]
-#define __pyx_n_u_new __pyx_string_tab[38]
-#define __pyx_n_u_node_cls __pyx_string_tab[39]
-#define __pyx_n_u_np __pyx_string_tab[40]
-#define __pyx_n_u_numpy __pyx_string_tab[41]
-#define __pyx_n_u_object __pyx_string_tab[42]
-#define __pyx_n_u_pop __pyx_string_tab[43]
-#define __pyx_n_u_qualname __pyx_string_tab[44]
-#define __pyx_n_u_response __pyx_string_tab[45]
-#define __pyx_n_u_responses __pyx_string_tab[46]
-#define __pyx_n_u_result __pyx_string_tab[47]
-#define __pyx_n_u_return __pyx_string_tab[48]
-#define __pyx_n_u_set_name __pyx_string_tab[49]
-#define __pyx_n_u_setdefault __pyx_string_tab[50]
-#define __pyx_n_u_test __pyx_string_tab[51]
-#define __pyx_n_u_values __pyx_string_tab[52]
-#define __pyx_n_u_weight __pyx_string_tab[53]
-#define __pyx_n_u_weights __pyx_string_tab[54]
-#define __pyx_kp_b_iso88591_AQ_q_U_1_vXQa_G4q_HF_1_L_N_Qa_O __pyx_string_tab[55]
-#define __pyx_kp_b_iso88591_AQ_q_U_1_vXQa_G4q_N_Qa_JgQa_Kt1 __pyx_string_tab[56]
-#define __pyx_kp_b_iso88591_vXQa_q_A_a_q_1 __pyx_string_tab[57]
-#define __pyx_kp_b_iso88591_vXQa_q_a_1_1 __pyx_string_tab[58]
+#define __pyx_n_u_dict __pyx_string_tab[21]
+#define __pyx_n_u_enabled __pyx_string_tab[22]
+#define __pyx_n_u_float64 __pyx_string_tab[23]
+#define __pyx_n_u_func __pyx_string_tab[24]
+#define __pyx_n_u_gene __pyx_string_tab[25]
+#define __pyx_n_u_i __pyx_string_tab[26]
+#define __pyx_n_u_innovation __pyx_string_tab[27]
+#define __pyx_n_u_innovations __pyx_string_tab[28]
+#define __pyx_n_u_is_coroutine __pyx_string_tab[29]
+#define __pyx_n_u_items __pyx_string_tab[30]
+#define __pyx_n_u_key __pyx_string_tab[31]
+#define __pyx_n_u_keys __pyx_string_tab[32]
+#define __pyx_n_u_list __pyx_string_tab[33]
+#define __pyx_n_u_main __pyx_string_tab[34]
+#define __pyx_n_u_module __pyx_string_tab[35]
+#define __pyx_n_u_n __pyx_string_tab[36]
+#define __pyx_n_u_name __pyx_string_tab[37]
+#define __pyx_n_u_neat__cython_fast_gene_factory __pyx_string_tab[38]
+#define __pyx_n_u_new __pyx_string_tab[39]
+#define __pyx_n_u_node_cls __pyx_string_tab[40]
+#define __pyx_n_u_np __pyx_string_tab[41]
+#define __pyx_n_u_numpy __pyx_string_tab[42]
+#define __pyx_n_u_object __pyx_string_tab[43]
+#define __pyx_n_u_pop __pyx_string_tab[44]
+#define __pyx_n_u_qualname __pyx_string_tab[45]
+#define __pyx_n_u_response __pyx_string_tab[46]
+#define __pyx_n_u_responses __pyx_string_tab[47]
+#define __pyx_n_u_result __pyx_string_tab[48]
+#define __pyx_n_u_return __pyx_string_tab[49]
+#define __pyx_n_u_set_name __pyx_string_tab[50]
+#define __pyx_n_u_setdefault __pyx_string_tab[51]
+#define __pyx_n_u_test __pyx_string_tab[52]
+#define __pyx_n_u_values __pyx_string_tab[53]
+#define __pyx_n_u_weight __pyx_string_tab[54]
+#define __pyx_n_u_weights __pyx_string_tab[55]
+#define __pyx_kp_b_iso88591_AQ_q_U_1_d_1_vXQa_G1_N_Qa_JgQa __pyx_string_tab[56]
+#define __pyx_kp_b_iso88591_AQ_q_U_1_vXQa_G4q_HF_1_L_N_Qa_O __pyx_string_tab[57]
+#define __pyx_kp_b_iso88591_vXQa_q_A_a_q_1 __pyx_string_tab[58]
+#define __pyx_kp_b_iso88591_vXQa_q_a_1_1 __pyx_string_tab[59]
 /* #### Code section: module_state_clear ### */
 #if CYTHON_USE_MODULE_STATE
 static CYTHON_SMALL_CODE int __pyx_m_clear(PyObject *m) {
@@ -3009,7 +3013,7 @@ static CYTHON_SMALL_CODE int __pyx_m_clear(PyObject *m) {
   Py_CLEAR(clear_module_state->__pyx_ptype_5numpy_character);
   Py_CLEAR(clear_module_state->__pyx_ptype_5numpy_ufunc);
   for (int i=0; i<4; ++i) { Py_CLEAR(clear_module_state->__pyx_codeobj_tab[i]); }
-  for (int i=0; i<59; ++i) { Py_CLEAR(clear_module_state->__pyx_string_tab[i]); }
+  for (int i=0; i<60; ++i) { Py_CLEAR(clear_module_state->__pyx_string_tab[i]); }
 /* #### Code section: module_state_clear_contents ### */
 /* CommonTypesMetaclass.module_state_clear */
 Py_CLEAR(clear_module_state->__pyx_CommonTypesMetaclassType);
@@ -3049,7 +3053,7 @@ static CYTHON_SMALL_CODE int __pyx_m_traverse(PyObject *m, visitproc visit, void
   Py_VISIT(traverse_module_state->__pyx_ptype_5numpy_character);
   Py_VISIT(traverse_module_state->__pyx_ptype_5numpy_ufunc);
   for (int i=0; i<4; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_codeobj_tab[i]); }
-  for (int i=0; i<59; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_string_tab[i]); }
+  for (int i=0; i<60; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_string_tab[i]); }
 /* #### Code section: module_state_traverse_contents ### */
 /* CommonTypesMetaclass.module_state_traverse */
 Py_VISIT(traverse_module_state->__pyx_CommonTypesMetaclassType);
@@ -4799,7 +4803,7 @@ PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-PyDoc_STRVAR(__pyx_doc_4neat_7_cython_17fast_gene_factory_create_connection_genes_batch, "\n    \346\211\271\351\207\217\345\210\233\345\273\272\350\277\236\346\216\245\345\237\272\345\233\240\345\257\271\350\261\241\n\n    \347\273\225\350\277\207 DefaultConnectionGene.__init__ \347\232\204\346\226\255\350\250\200\346\243\200\346\237\245\357\274\214\347\233\264\346\216\245\345\210\233\345\273\272\345\257\271\350\261\241\345\271\266\350\256\276\347\275\256\345\261\236\346\200\247\343\200\202\n\n    Args:\n        conn_cls: DefaultConnectionGene \347\261\273\n        keys: \350\277\236\346\216\245\351\224\256\345\210\227\350\241\250 [(input, output), ...]\n        innovations: innovation number \345\210\227\350\241\250\n        weights: \346\235\203\351\207\215\346\225\260\347\273\204 (numpy float64)\n        enabled: \345\220\257\347\224\250\347\212\266\346\200\201\346\225\260\347\273\204 (numpy uint8)\n\n    Returns:\n        \350\277\236\346\216\245\345\237\272\345\233\240\345\257\271\350\261\241\345\210\227\350\241\250\n    ");
+PyDoc_STRVAR(__pyx_doc_4neat_7_cython_17fast_gene_factory_create_connection_genes_batch, "\n    \346\211\271\351\207\217\345\210\233\345\273\272\350\277\236\346\216\245\345\237\272\345\233\240\345\257\271\350\261\241\n\n    \347\273\225\350\277\207 DefaultConnectionGene.__init__ \347\232\204\346\226\255\350\250\200\346\243\200\346\237\245\357\274\214\347\233\264\346\216\245\345\210\233\345\273\272\345\257\271\350\261\241\345\271\266\350\256\276\347\275\256\345\261\236\346\200\247\343\200\202\n    \347\233\264\346\216\245\350\277\224\345\233\236\345\255\227\345\205\270\357\274\214\351\201\277\345\205\215\350\260\203\347\224\250\346\226\271\345\206\215\346\254\241\351\201\215\345\216\206\346\267\273\345\212\240\343\200\202\n\n    Args:\n        conn_cls: DefaultConnectionGene \347\261\273\n        keys: \350\277\236\346\216\245\351\224\256\345\210\227\350\241\250 [(input, output), ...]\n        innovations: innovation number \345\210\227\350\241\250\n        weights: \346\235\203\351\207\215\346\225\260\347\273\204 (numpy float64)\n        enabled: \345\220\257\347\224\250\347\212\266\346\200\201\346\225\260\347\273\204 (numpy uint8)\n\n    Returns:\n        \350\277\236\346\216\245\345\237\272\345\233\240\345\255\227\345\205\270 {key: gene, ...}\n    ");
 static PyMethodDef __pyx_mdef_4neat_7_cython_17fast_gene_factory_1create_connection_genes_batch = {"create_connection_genes_batch", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_4neat_7_cython_17fast_gene_factory_1create_connection_genes_batch, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_4neat_7_cython_17fast_gene_factory_create_connection_genes_batch};
 static PyObject *__pyx_pw_4neat_7_cython_17fast_gene_factory_1create_connection_genes_batch(PyObject *__pyx_self, 
 #if CYTHON_METH_FASTCALL
@@ -4927,6 +4931,7 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_create_connection_g
   int __pyx_v_i;
   PyObject *__pyx_v_result = 0;
   PyObject *__pyx_v_gene = 0;
+  PyObject *__pyx_v_key = 0;
   __Pyx_LocalBuf_ND __pyx_pybuffernd_enabled;
   __Pyx_Buffer __pyx_pybuffer_enabled;
   __Pyx_LocalBuf_ND __pyx_pybuffernd_weights;
@@ -4941,7 +4946,6 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_create_connection_g
   PyObject *__pyx_t_6 = NULL;
   size_t __pyx_t_7;
   Py_ssize_t __pyx_t_8;
-  int __pyx_t_9;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
@@ -4965,50 +4969,67 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_create_connection_g
   }
   __pyx_pybuffernd_enabled.diminfo[0].strides = __pyx_pybuffernd_enabled.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_enabled.diminfo[0].shape = __pyx_pybuffernd_enabled.rcbuffer->pybuffer.shape[0];
 
-  /* "neat/_cython/fast_gene_factory.pyx":42
- * 
+  /* "neat/_cython/fast_gene_factory.pyx":43
+ *          {key: gene, ...}
  *     """
  *     cdef int n = len(keys)             # <<<<<<<<<<<<<<
  *     cdef int i
- *     cdef list result = []
+ *     cdef dict result = {}
 */
   if (unlikely(__pyx_v_keys == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
-    __PYX_ERR(0, 42, __pyx_L1_error)
+    __PYX_ERR(0, 43, __pyx_L1_error)
   }
-  __pyx_t_1 = __Pyx_PyList_GET_SIZE(__pyx_v_keys); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 42, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyList_GET_SIZE(__pyx_v_keys); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 43, __pyx_L1_error)
   __pyx_v_n = __pyx_t_1;
 
-  /* "neat/_cython/fast_gene_factory.pyx":44
+  /* "neat/_cython/fast_gene_factory.pyx":45
  *     cdef int n = len(keys)
  *     cdef int i
- *     cdef list result = []             # <<<<<<<<<<<<<<
+ *     cdef dict result = {}             # <<<<<<<<<<<<<<
  *     cdef object gene
- * 
+ *     cdef tuple key
 */
-  __pyx_t_2 = PyList_New(0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 44, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyDict_NewPresized(0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 45, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __pyx_v_result = ((PyObject*)__pyx_t_2);
   __pyx_t_2 = 0;
 
-  /* "neat/_cython/fast_gene_factory.pyx":47
- *     cdef object gene
+  /* "neat/_cython/fast_gene_factory.pyx":49
+ *     cdef tuple key
  * 
  *     for i in range(n):             # <<<<<<<<<<<<<<
+ *         key = keys[i]
  *         #  object.__new__  __init__
- *         gene = object.__new__(conn_cls)
 */
   __pyx_t_3 = __pyx_v_n;
   __pyx_t_4 = __pyx_t_3;
   for (__pyx_t_5 = 0; __pyx_t_5 < __pyx_t_4; __pyx_t_5+=1) {
     __pyx_v_i = __pyx_t_5;
 
-    /* "neat/_cython/fast_gene_factory.pyx":49
+    /* "neat/_cython/fast_gene_factory.pyx":50
+ * 
  *     for i in range(n):
+ *         key = keys[i]             # <<<<<<<<<<<<<<
+ *         #  object.__new__  __init__
+ *         gene = object.__new__(conn_cls)
+*/
+    if (unlikely(__pyx_v_keys == Py_None)) {
+      PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
+      __PYX_ERR(0, 50, __pyx_L1_error)
+    }
+    __pyx_t_2 = __Pyx_PyList_GET_ITEM(__pyx_v_keys, __pyx_v_i);
+    __Pyx_INCREF(__pyx_t_2);
+    if (!(likely(PyTuple_CheckExact(__pyx_t_2))||((__pyx_t_2) == Py_None) || __Pyx_RaiseUnexpectedTypeError("tuple", __pyx_t_2))) __PYX_ERR(0, 50, __pyx_L1_error)
+    __Pyx_XDECREF_SET(__pyx_v_key, ((PyObject*)__pyx_t_2));
+    __pyx_t_2 = 0;
+
+    /* "neat/_cython/fast_gene_factory.pyx":52
+ *         key = keys[i]
  *         #  object.__new__  __init__
  *         gene = object.__new__(conn_cls)             # <<<<<<<<<<<<<<
  *         #  __slots__
- *         gene.key = keys[i]
+ *         gene.key = key
 */
     __pyx_t_6 = __pyx_builtin_object;
     __Pyx_INCREF(__pyx_t_6);
@@ -5017,82 +5038,75 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_create_connection_g
       PyObject *__pyx_callargs[2] = {__pyx_t_6, __pyx_v_conn_cls};
       __pyx_t_2 = __Pyx_PyObject_FastCallMethod((PyObject*)__pyx_mstate_global->__pyx_n_u_new, __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
-      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 49, __pyx_L1_error)
+      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 52, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
     }
     __Pyx_XDECREF_SET(__pyx_v_gene, __pyx_t_2);
     __pyx_t_2 = 0;
 
-    /* "neat/_cython/fast_gene_factory.pyx":51
+    /* "neat/_cython/fast_gene_factory.pyx":54
  *         gene = object.__new__(conn_cls)
  *         #  __slots__
- *         gene.key = keys[i]             # <<<<<<<<<<<<<<
+ *         gene.key = key             # <<<<<<<<<<<<<<
  *         gene.innovation = innovations[i]
  *         gene.weight = weights[i]
 */
-    if (unlikely(__pyx_v_keys == Py_None)) {
-      PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 51, __pyx_L1_error)
-    }
-    __pyx_t_2 = __Pyx_PyList_GET_ITEM(__pyx_v_keys, __pyx_v_i);
-    __Pyx_INCREF(__pyx_t_2);
-    if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_key, __pyx_t_2) < (0)) __PYX_ERR(0, 51, __pyx_L1_error)
-    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+    if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_key, __pyx_v_key) < (0)) __PYX_ERR(0, 54, __pyx_L1_error)
 
-    /* "neat/_cython/fast_gene_factory.pyx":52
+    /* "neat/_cython/fast_gene_factory.pyx":55
  *         #  __slots__
- *         gene.key = keys[i]
+ *         gene.key = key
  *         gene.innovation = innovations[i]             # <<<<<<<<<<<<<<
  *         gene.weight = weights[i]
  *         gene.enabled = bool(enabled[i])
 */
     if (unlikely(__pyx_v_innovations == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 52, __pyx_L1_error)
+      __PYX_ERR(0, 55, __pyx_L1_error)
     }
     __pyx_t_2 = __Pyx_PyList_GET_ITEM(__pyx_v_innovations, __pyx_v_i);
     __Pyx_INCREF(__pyx_t_2);
-    if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_innovation, __pyx_t_2) < (0)) __PYX_ERR(0, 52, __pyx_L1_error)
+    if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_innovation, __pyx_t_2) < (0)) __PYX_ERR(0, 55, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-    /* "neat/_cython/fast_gene_factory.pyx":53
- *         gene.key = keys[i]
+    /* "neat/_cython/fast_gene_factory.pyx":56
+ *         gene.key = key
  *         gene.innovation = innovations[i]
  *         gene.weight = weights[i]             # <<<<<<<<<<<<<<
  *         gene.enabled = bool(enabled[i])
- *         result.append(gene)
+ *         result[key] = gene
 */
     __pyx_t_8 = __pyx_v_i;
-    __pyx_t_2 = PyFloat_FromDouble((*__Pyx_BufPtrStrided1d(__pyx_t_4neat_7_cython_17fast_gene_factory_DTYPE_t *, __pyx_pybuffernd_weights.rcbuffer->pybuffer.buf, __pyx_t_8, __pyx_pybuffernd_weights.diminfo[0].strides))); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 53, __pyx_L1_error)
+    __pyx_t_2 = PyFloat_FromDouble((*__Pyx_BufPtrStrided1d(__pyx_t_4neat_7_cython_17fast_gene_factory_DTYPE_t *, __pyx_pybuffernd_weights.rcbuffer->pybuffer.buf, __pyx_t_8, __pyx_pybuffernd_weights.diminfo[0].strides))); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 56, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
-    if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_weight, __pyx_t_2) < (0)) __PYX_ERR(0, 53, __pyx_L1_error)
+    if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_weight, __pyx_t_2) < (0)) __PYX_ERR(0, 56, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-    /* "neat/_cython/fast_gene_factory.pyx":54
+    /* "neat/_cython/fast_gene_factory.pyx":57
  *         gene.innovation = innovations[i]
  *         gene.weight = weights[i]
  *         gene.enabled = bool(enabled[i])             # <<<<<<<<<<<<<<
- *         result.append(gene)
+ *         result[key] = gene
  * 
 */
     __pyx_t_8 = __pyx_v_i;
-    __pyx_t_2 = __Pyx_PyBool_FromLong((!(!((*__Pyx_BufPtrStrided1d(__pyx_t_5numpy_uint8_t *, __pyx_pybuffernd_enabled.rcbuffer->pybuffer.buf, __pyx_t_8, __pyx_pybuffernd_enabled.diminfo[0].strides)) != 0)))); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 54, __pyx_L1_error)
+    __pyx_t_2 = __Pyx_PyBool_FromLong((!(!((*__Pyx_BufPtrStrided1d(__pyx_t_5numpy_uint8_t *, __pyx_pybuffernd_enabled.rcbuffer->pybuffer.buf, __pyx_t_8, __pyx_pybuffernd_enabled.diminfo[0].strides)) != 0)))); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 57, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
-    if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_enabled, __pyx_t_2) < (0)) __PYX_ERR(0, 54, __pyx_L1_error)
+    if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_enabled, __pyx_t_2) < (0)) __PYX_ERR(0, 57, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-    /* "neat/_cython/fast_gene_factory.pyx":55
+    /* "neat/_cython/fast_gene_factory.pyx":58
  *         gene.weight = weights[i]
  *         gene.enabled = bool(enabled[i])
- *         result.append(gene)             # <<<<<<<<<<<<<<
+ *         result[key] = gene             # <<<<<<<<<<<<<<
  * 
  *     return result
 */
-    __pyx_t_9 = __Pyx_PyList_Append(__pyx_v_result, __pyx_v_gene); if (unlikely(__pyx_t_9 == ((int)-1))) __PYX_ERR(0, 55, __pyx_L1_error)
+    if (unlikely((PyDict_SetItem(__pyx_v_result, __pyx_v_key, __pyx_v_gene) < 0))) __PYX_ERR(0, 58, __pyx_L1_error)
   }
 
-  /* "neat/_cython/fast_gene_factory.pyx":57
- *         result.append(gene)
+  /* "neat/_cython/fast_gene_factory.pyx":60
+ *         result[key] = gene
  * 
  *     return result             # <<<<<<<<<<<<<<
  * 
@@ -5131,12 +5145,13 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_create_connection_g
   __pyx_L2:;
   __Pyx_XDECREF(__pyx_v_result);
   __Pyx_XDECREF(__pyx_v_gene);
+  __Pyx_XDECREF(__pyx_v_key);
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-/* "neat/_cython/fast_gene_factory.pyx":60
+/* "neat/_cython/fast_gene_factory.pyx":63
  * 
  * 
  * def create_node_genes_batch(             # <<<<<<<<<<<<<<
@@ -5189,56 +5204,56 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_node_cls,&__pyx_mstate_global->__pyx_n_u_keys,&__pyx_mstate_global->__pyx_n_u_biases,&__pyx_mstate_global->__pyx_n_u_responses,&__pyx_mstate_global->__pyx_n_u_activations,&__pyx_mstate_global->__pyx_n_u_aggregations,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 60, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 63, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  6:
         values[5] = __Pyx_ArgRef_FASTCALL(__pyx_args, 5);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[5])) __PYX_ERR(0, 60, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[5])) __PYX_ERR(0, 63, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  5:
         values[4] = __Pyx_ArgRef_FASTCALL(__pyx_args, 4);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[4])) __PYX_ERR(0, 60, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[4])) __PYX_ERR(0, 63, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  4:
         values[3] = __Pyx_ArgRef_FASTCALL(__pyx_args, 3);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 60, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 63, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  3:
         values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 60, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 63, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 60, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 63, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 60, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 63, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "create_node_genes_batch", 0) < (0)) __PYX_ERR(0, 60, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "create_node_genes_batch", 0) < (0)) __PYX_ERR(0, 63, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 6; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("create_node_genes_batch", 1, 6, 6, i); __PYX_ERR(0, 60, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("create_node_genes_batch", 1, 6, 6, i); __PYX_ERR(0, 63, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 6)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 60, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 63, __pyx_L3_error)
       values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 60, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 63, __pyx_L3_error)
       values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 60, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 63, __pyx_L3_error)
       values[3] = __Pyx_ArgRef_FASTCALL(__pyx_args, 3);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 60, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 63, __pyx_L3_error)
       values[4] = __Pyx_ArgRef_FASTCALL(__pyx_args, 4);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[4])) __PYX_ERR(0, 60, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[4])) __PYX_ERR(0, 63, __pyx_L3_error)
       values[5] = __Pyx_ArgRef_FASTCALL(__pyx_args, 5);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[5])) __PYX_ERR(0, 60, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[5])) __PYX_ERR(0, 63, __pyx_L3_error)
     }
     __pyx_v_node_cls = values[0];
     __pyx_v_keys = ((PyObject*)values[1]);
@@ -5249,7 +5264,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("create_node_genes_batch", 1, 6, 6, __pyx_nargs); __PYX_ERR(0, 60, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("create_node_genes_batch", 1, 6, 6, __pyx_nargs); __PYX_ERR(0, 63, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -5260,11 +5275,11 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_keys), (&PyList_Type), 1, "keys", 1))) __PYX_ERR(0, 62, __pyx_L1_error)
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_biases), __pyx_mstate_global->__pyx_ptype_5numpy_ndarray, 1, "biases", 0))) __PYX_ERR(0, 63, __pyx_L1_error)
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_responses), __pyx_mstate_global->__pyx_ptype_5numpy_ndarray, 1, "responses", 0))) __PYX_ERR(0, 64, __pyx_L1_error)
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_activations), (&PyList_Type), 1, "activations", 1))) __PYX_ERR(0, 65, __pyx_L1_error)
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_aggregations), (&PyList_Type), 1, "aggregations", 1))) __PYX_ERR(0, 66, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_keys), (&PyList_Type), 1, "keys", 1))) __PYX_ERR(0, 65, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_biases), __pyx_mstate_global->__pyx_ptype_5numpy_ndarray, 1, "biases", 0))) __PYX_ERR(0, 66, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_responses), __pyx_mstate_global->__pyx_ptype_5numpy_ndarray, 1, "responses", 0))) __PYX_ERR(0, 67, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_activations), (&PyList_Type), 1, "activations", 1))) __PYX_ERR(0, 68, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_aggregations), (&PyList_Type), 1, "aggregations", 1))) __PYX_ERR(0, 69, __pyx_L1_error)
   __pyx_r = __pyx_pf_4neat_7_cython_17fast_gene_factory_2create_node_genes_batch(__pyx_self, __pyx_v_node_cls, __pyx_v_keys, __pyx_v_biases, __pyx_v_responses, __pyx_v_activations, __pyx_v_aggregations);
 
   /* function exit code */
@@ -5318,16 +5333,16 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_2create_node_genes_
   __pyx_pybuffernd_responses.rcbuffer = &__pyx_pybuffer_responses;
   {
     __Pyx_BufFmt_StackElem __pyx_stack[1];
-    if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_biases.rcbuffer->pybuffer, (PyObject*)__pyx_v_biases, &__Pyx_TypeInfo_nn___pyx_t_4neat_7_cython_17fast_gene_factory_DTYPE_t, PyBUF_FORMAT| PyBUF_STRIDES, 1, 0, __pyx_stack) == -1)) __PYX_ERR(0, 60, __pyx_L1_error)
+    if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_biases.rcbuffer->pybuffer, (PyObject*)__pyx_v_biases, &__Pyx_TypeInfo_nn___pyx_t_4neat_7_cython_17fast_gene_factory_DTYPE_t, PyBUF_FORMAT| PyBUF_STRIDES, 1, 0, __pyx_stack) == -1)) __PYX_ERR(0, 63, __pyx_L1_error)
   }
   __pyx_pybuffernd_biases.diminfo[0].strides = __pyx_pybuffernd_biases.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_biases.diminfo[0].shape = __pyx_pybuffernd_biases.rcbuffer->pybuffer.shape[0];
   {
     __Pyx_BufFmt_StackElem __pyx_stack[1];
-    if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_responses.rcbuffer->pybuffer, (PyObject*)__pyx_v_responses, &__Pyx_TypeInfo_nn___pyx_t_4neat_7_cython_17fast_gene_factory_DTYPE_t, PyBUF_FORMAT| PyBUF_STRIDES, 1, 0, __pyx_stack) == -1)) __PYX_ERR(0, 60, __pyx_L1_error)
+    if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_responses.rcbuffer->pybuffer, (PyObject*)__pyx_v_responses, &__Pyx_TypeInfo_nn___pyx_t_4neat_7_cython_17fast_gene_factory_DTYPE_t, PyBUF_FORMAT| PyBUF_STRIDES, 1, 0, __pyx_stack) == -1)) __PYX_ERR(0, 63, __pyx_L1_error)
   }
   __pyx_pybuffernd_responses.diminfo[0].strides = __pyx_pybuffernd_responses.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_responses.diminfo[0].shape = __pyx_pybuffernd_responses.rcbuffer->pybuffer.shape[0];
 
-  /* "neat/_cython/fast_gene_factory.pyx":84
+  /* "neat/_cython/fast_gene_factory.pyx":87
  * 
  *     """
  *     cdef int n = len(keys)             # <<<<<<<<<<<<<<
@@ -5336,24 +5351,24 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_2create_node_genes_
 */
   if (unlikely(__pyx_v_keys == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
-    __PYX_ERR(0, 84, __pyx_L1_error)
+    __PYX_ERR(0, 87, __pyx_L1_error)
   }
-  __pyx_t_1 = __Pyx_PyList_GET_SIZE(__pyx_v_keys); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 84, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyList_GET_SIZE(__pyx_v_keys); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 87, __pyx_L1_error)
   __pyx_v_n = __pyx_t_1;
 
-  /* "neat/_cython/fast_gene_factory.pyx":86
+  /* "neat/_cython/fast_gene_factory.pyx":89
  *     cdef int n = len(keys)
  *     cdef int i
  *     cdef list result = []             # <<<<<<<<<<<<<<
  *     cdef object gene
  * 
 */
-  __pyx_t_2 = PyList_New(0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 86, __pyx_L1_error)
+  __pyx_t_2 = PyList_New(0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 89, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __pyx_v_result = ((PyObject*)__pyx_t_2);
   __pyx_t_2 = 0;
 
-  /* "neat/_cython/fast_gene_factory.pyx":89
+  /* "neat/_cython/fast_gene_factory.pyx":92
  *     cdef object gene
  * 
  *     for i in range(n):             # <<<<<<<<<<<<<<
@@ -5365,7 +5380,7 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_2create_node_genes_
   for (__pyx_t_5 = 0; __pyx_t_5 < __pyx_t_4; __pyx_t_5+=1) {
     __pyx_v_i = __pyx_t_5;
 
-    /* "neat/_cython/fast_gene_factory.pyx":91
+    /* "neat/_cython/fast_gene_factory.pyx":94
  *     for i in range(n):
  *         #  object.__new__  __init__
  *         gene = object.__new__(node_cls)             # <<<<<<<<<<<<<<
@@ -5379,13 +5394,13 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_2create_node_genes_
       PyObject *__pyx_callargs[2] = {__pyx_t_6, __pyx_v_node_cls};
       __pyx_t_2 = __Pyx_PyObject_FastCallMethod((PyObject*)__pyx_mstate_global->__pyx_n_u_new, __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
-      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 91, __pyx_L1_error)
+      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 94, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
     }
     __Pyx_XDECREF_SET(__pyx_v_gene, __pyx_t_2);
     __pyx_t_2 = 0;
 
-    /* "neat/_cython/fast_gene_factory.pyx":93
+    /* "neat/_cython/fast_gene_factory.pyx":96
  *         gene = object.__new__(node_cls)
  *         #  __slots__
  *         gene.key = keys[i]             # <<<<<<<<<<<<<<
@@ -5394,14 +5409,14 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_2create_node_genes_
 */
     if (unlikely(__pyx_v_keys == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 93, __pyx_L1_error)
+      __PYX_ERR(0, 96, __pyx_L1_error)
     }
     __pyx_t_2 = __Pyx_PyList_GET_ITEM(__pyx_v_keys, __pyx_v_i);
     __Pyx_INCREF(__pyx_t_2);
-    if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_key, __pyx_t_2) < (0)) __PYX_ERR(0, 93, __pyx_L1_error)
+    if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_key, __pyx_t_2) < (0)) __PYX_ERR(0, 96, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-    /* "neat/_cython/fast_gene_factory.pyx":94
+    /* "neat/_cython/fast_gene_factory.pyx":97
  *         #  __slots__
  *         gene.key = keys[i]
  *         gene.bias = biases[i]             # <<<<<<<<<<<<<<
@@ -5409,12 +5424,12 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_2create_node_genes_
  *         gene.activation = activations[i]
 */
     __pyx_t_8 = __pyx_v_i;
-    __pyx_t_2 = PyFloat_FromDouble((*__Pyx_BufPtrStrided1d(__pyx_t_4neat_7_cython_17fast_gene_factory_DTYPE_t *, __pyx_pybuffernd_biases.rcbuffer->pybuffer.buf, __pyx_t_8, __pyx_pybuffernd_biases.diminfo[0].strides))); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 94, __pyx_L1_error)
+    __pyx_t_2 = PyFloat_FromDouble((*__Pyx_BufPtrStrided1d(__pyx_t_4neat_7_cython_17fast_gene_factory_DTYPE_t *, __pyx_pybuffernd_biases.rcbuffer->pybuffer.buf, __pyx_t_8, __pyx_pybuffernd_biases.diminfo[0].strides))); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 97, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
-    if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_bias, __pyx_t_2) < (0)) __PYX_ERR(0, 94, __pyx_L1_error)
+    if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_bias, __pyx_t_2) < (0)) __PYX_ERR(0, 97, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-    /* "neat/_cython/fast_gene_factory.pyx":95
+    /* "neat/_cython/fast_gene_factory.pyx":98
  *         gene.key = keys[i]
  *         gene.bias = biases[i]
  *         gene.response = responses[i]             # <<<<<<<<<<<<<<
@@ -5422,12 +5437,12 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_2create_node_genes_
  *         gene.aggregation = aggregations[i]
 */
     __pyx_t_8 = __pyx_v_i;
-    __pyx_t_2 = PyFloat_FromDouble((*__Pyx_BufPtrStrided1d(__pyx_t_4neat_7_cython_17fast_gene_factory_DTYPE_t *, __pyx_pybuffernd_responses.rcbuffer->pybuffer.buf, __pyx_t_8, __pyx_pybuffernd_responses.diminfo[0].strides))); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 95, __pyx_L1_error)
+    __pyx_t_2 = PyFloat_FromDouble((*__Pyx_BufPtrStrided1d(__pyx_t_4neat_7_cython_17fast_gene_factory_DTYPE_t *, __pyx_pybuffernd_responses.rcbuffer->pybuffer.buf, __pyx_t_8, __pyx_pybuffernd_responses.diminfo[0].strides))); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 98, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
-    if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_response, __pyx_t_2) < (0)) __PYX_ERR(0, 95, __pyx_L1_error)
+    if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_response, __pyx_t_2) < (0)) __PYX_ERR(0, 98, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-    /* "neat/_cython/fast_gene_factory.pyx":96
+    /* "neat/_cython/fast_gene_factory.pyx":99
  *         gene.bias = biases[i]
  *         gene.response = responses[i]
  *         gene.activation = activations[i]             # <<<<<<<<<<<<<<
@@ -5436,14 +5451,14 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_2create_node_genes_
 */
     if (unlikely(__pyx_v_activations == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 96, __pyx_L1_error)
+      __PYX_ERR(0, 99, __pyx_L1_error)
     }
     __pyx_t_2 = __Pyx_PyList_GET_ITEM(__pyx_v_activations, __pyx_v_i);
     __Pyx_INCREF(__pyx_t_2);
-    if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_activation, __pyx_t_2) < (0)) __PYX_ERR(0, 96, __pyx_L1_error)
+    if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_activation, __pyx_t_2) < (0)) __PYX_ERR(0, 99, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-    /* "neat/_cython/fast_gene_factory.pyx":97
+    /* "neat/_cython/fast_gene_factory.pyx":100
  *         gene.response = responses[i]
  *         gene.activation = activations[i]
  *         gene.aggregation = aggregations[i]             # <<<<<<<<<<<<<<
@@ -5452,24 +5467,24 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_2create_node_genes_
 */
     if (unlikely(__pyx_v_aggregations == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 97, __pyx_L1_error)
+      __PYX_ERR(0, 100, __pyx_L1_error)
     }
     __pyx_t_2 = __Pyx_PyList_GET_ITEM(__pyx_v_aggregations, __pyx_v_i);
     __Pyx_INCREF(__pyx_t_2);
-    if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_aggregation, __pyx_t_2) < (0)) __PYX_ERR(0, 97, __pyx_L1_error)
+    if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_aggregation, __pyx_t_2) < (0)) __PYX_ERR(0, 100, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-    /* "neat/_cython/fast_gene_factory.pyx":98
+    /* "neat/_cython/fast_gene_factory.pyx":101
  *         gene.activation = activations[i]
  *         gene.aggregation = aggregations[i]
  *         result.append(gene)             # <<<<<<<<<<<<<<
  * 
  *     return result
 */
-    __pyx_t_9 = __Pyx_PyList_Append(__pyx_v_result, __pyx_v_gene); if (unlikely(__pyx_t_9 == ((int)-1))) __PYX_ERR(0, 98, __pyx_L1_error)
+    __pyx_t_9 = __Pyx_PyList_Append(__pyx_v_result, __pyx_v_gene); if (unlikely(__pyx_t_9 == ((int)-1))) __PYX_ERR(0, 101, __pyx_L1_error)
   }
 
-  /* "neat/_cython/fast_gene_factory.pyx":100
+  /* "neat/_cython/fast_gene_factory.pyx":103
  *         result.append(gene)
  * 
  *     return result             # <<<<<<<<<<<<<<
@@ -5481,7 +5496,7 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_2create_node_genes_
   __pyx_r = __pyx_v_result;
   goto __pyx_L0;
 
-  /* "neat/_cython/fast_gene_factory.pyx":60
+  /* "neat/_cython/fast_gene_factory.pyx":63
  * 
  * 
  * def create_node_genes_batch(             # <<<<<<<<<<<<<<
@@ -5514,7 +5529,7 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_2create_node_genes_
   return __pyx_r;
 }
 
-/* "neat/_cython/fast_gene_factory.pyx":103
+/* "neat/_cython/fast_gene_factory.pyx":106
  * 
  * 
  * def create_single_connection_gene(             # <<<<<<<<<<<<<<
@@ -5566,60 +5581,60 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_conn_cls,&__pyx_mstate_global->__pyx_n_u_key,&__pyx_mstate_global->__pyx_n_u_innovation,&__pyx_mstate_global->__pyx_n_u_weight,&__pyx_mstate_global->__pyx_n_u_enabled,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 103, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 106, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  5:
         values[4] = __Pyx_ArgRef_FASTCALL(__pyx_args, 4);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[4])) __PYX_ERR(0, 103, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[4])) __PYX_ERR(0, 106, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  4:
         values[3] = __Pyx_ArgRef_FASTCALL(__pyx_args, 3);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 103, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 106, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  3:
         values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 103, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 106, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 103, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 106, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 103, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 106, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "create_single_connection_gene", 0) < (0)) __PYX_ERR(0, 103, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "create_single_connection_gene", 0) < (0)) __PYX_ERR(0, 106, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 5; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("create_single_connection_gene", 1, 5, 5, i); __PYX_ERR(0, 103, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("create_single_connection_gene", 1, 5, 5, i); __PYX_ERR(0, 106, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 5)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 103, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 106, __pyx_L3_error)
       values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 103, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 106, __pyx_L3_error)
       values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 103, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 106, __pyx_L3_error)
       values[3] = __Pyx_ArgRef_FASTCALL(__pyx_args, 3);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 103, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 106, __pyx_L3_error)
       values[4] = __Pyx_ArgRef_FASTCALL(__pyx_args, 4);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[4])) __PYX_ERR(0, 103, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[4])) __PYX_ERR(0, 106, __pyx_L3_error)
     }
     __pyx_v_conn_cls = values[0];
     __pyx_v_key = ((PyObject*)values[1]);
-    __pyx_v_innovation = __Pyx_PyLong_As_int(values[2]); if (unlikely((__pyx_v_innovation == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 106, __pyx_L3_error)
-    __pyx_v_weight = __Pyx_PyFloat_AsDouble(values[3]); if (unlikely((__pyx_v_weight == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 107, __pyx_L3_error)
-    __pyx_v_enabled = __Pyx_PyObject_IsTrue(values[4]); if (unlikely((__pyx_v_enabled == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 108, __pyx_L3_error)
+    __pyx_v_innovation = __Pyx_PyLong_As_int(values[2]); if (unlikely((__pyx_v_innovation == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 109, __pyx_L3_error)
+    __pyx_v_weight = __Pyx_PyFloat_AsDouble(values[3]); if (unlikely((__pyx_v_weight == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 110, __pyx_L3_error)
+    __pyx_v_enabled = __Pyx_PyObject_IsTrue(values[4]); if (unlikely((__pyx_v_enabled == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 111, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("create_single_connection_gene", 1, 5, 5, __pyx_nargs); __PYX_ERR(0, 103, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("create_single_connection_gene", 1, 5, 5, __pyx_nargs); __PYX_ERR(0, 106, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -5630,7 +5645,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_key), (&PyTuple_Type), 1, "key", 1))) __PYX_ERR(0, 105, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_key), (&PyTuple_Type), 1, "key", 1))) __PYX_ERR(0, 108, __pyx_L1_error)
   __pyx_r = __pyx_pf_4neat_7_cython_17fast_gene_factory_4create_single_connection_gene(__pyx_self, __pyx_v_conn_cls, __pyx_v_key, __pyx_v_innovation, __pyx_v_weight, __pyx_v_enabled);
 
   /* function exit code */
@@ -5662,7 +5677,7 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_4create_single_conn
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("create_single_connection_gene", 0);
 
-  /* "neat/_cython/fast_gene_factory.pyx":125
+  /* "neat/_cython/fast_gene_factory.pyx":128
  * 
  *     """
  *     cdef object gene = object.__new__(conn_cls)             # <<<<<<<<<<<<<<
@@ -5676,58 +5691,58 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_4create_single_conn
     PyObject *__pyx_callargs[2] = {__pyx_t_2, __pyx_v_conn_cls};
     __pyx_t_1 = __Pyx_PyObject_FastCallMethod((PyObject*)__pyx_mstate_global->__pyx_n_u_new, __pyx_callargs+__pyx_t_3, (2-__pyx_t_3) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
     __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 125, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 128, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
   }
   __pyx_v_gene = __pyx_t_1;
   __pyx_t_1 = 0;
 
-  /* "neat/_cython/fast_gene_factory.pyx":126
+  /* "neat/_cython/fast_gene_factory.pyx":129
  *     """
  *     cdef object gene = object.__new__(conn_cls)
  *     gene.key = key             # <<<<<<<<<<<<<<
  *     gene.innovation = innovation
  *     gene.weight = weight
 */
-  if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_key, __pyx_v_key) < (0)) __PYX_ERR(0, 126, __pyx_L1_error)
+  if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_key, __pyx_v_key) < (0)) __PYX_ERR(0, 129, __pyx_L1_error)
 
-  /* "neat/_cython/fast_gene_factory.pyx":127
+  /* "neat/_cython/fast_gene_factory.pyx":130
  *     cdef object gene = object.__new__(conn_cls)
  *     gene.key = key
  *     gene.innovation = innovation             # <<<<<<<<<<<<<<
  *     gene.weight = weight
  *     gene.enabled = enabled
 */
-  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_innovation); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 127, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_innovation); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 130, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_innovation, __pyx_t_1) < (0)) __PYX_ERR(0, 127, __pyx_L1_error)
+  if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_innovation, __pyx_t_1) < (0)) __PYX_ERR(0, 130, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "neat/_cython/fast_gene_factory.pyx":128
+  /* "neat/_cython/fast_gene_factory.pyx":131
  *     gene.key = key
  *     gene.innovation = innovation
  *     gene.weight = weight             # <<<<<<<<<<<<<<
  *     gene.enabled = enabled
  *     return gene
 */
-  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_weight); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 128, __pyx_L1_error)
+  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_weight); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 131, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_weight, __pyx_t_1) < (0)) __PYX_ERR(0, 128, __pyx_L1_error)
+  if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_weight, __pyx_t_1) < (0)) __PYX_ERR(0, 131, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "neat/_cython/fast_gene_factory.pyx":129
+  /* "neat/_cython/fast_gene_factory.pyx":132
  *     gene.innovation = innovation
  *     gene.weight = weight
  *     gene.enabled = enabled             # <<<<<<<<<<<<<<
  *     return gene
  * 
 */
-  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_enabled); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 129, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_enabled); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 132, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_enabled, __pyx_t_1) < (0)) __PYX_ERR(0, 129, __pyx_L1_error)
+  if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_enabled, __pyx_t_1) < (0)) __PYX_ERR(0, 132, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "neat/_cython/fast_gene_factory.pyx":130
+  /* "neat/_cython/fast_gene_factory.pyx":133
  *     gene.weight = weight
  *     gene.enabled = enabled
  *     return gene             # <<<<<<<<<<<<<<
@@ -5739,7 +5754,7 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_4create_single_conn
   __pyx_r = __pyx_v_gene;
   goto __pyx_L0;
 
-  /* "neat/_cython/fast_gene_factory.pyx":103
+  /* "neat/_cython/fast_gene_factory.pyx":106
  * 
  * 
  * def create_single_connection_gene(             # <<<<<<<<<<<<<<
@@ -5760,7 +5775,7 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_4create_single_conn
   return __pyx_r;
 }
 
-/* "neat/_cython/fast_gene_factory.pyx":133
+/* "neat/_cython/fast_gene_factory.pyx":136
  * 
  * 
  * def create_single_node_gene(             # <<<<<<<<<<<<<<
@@ -5813,67 +5828,67 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_node_cls,&__pyx_mstate_global->__pyx_n_u_key,&__pyx_mstate_global->__pyx_n_u_bias,&__pyx_mstate_global->__pyx_n_u_response,&__pyx_mstate_global->__pyx_n_u_activation,&__pyx_mstate_global->__pyx_n_u_aggregation,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 133, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 136, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  6:
         values[5] = __Pyx_ArgRef_FASTCALL(__pyx_args, 5);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[5])) __PYX_ERR(0, 133, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[5])) __PYX_ERR(0, 136, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  5:
         values[4] = __Pyx_ArgRef_FASTCALL(__pyx_args, 4);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[4])) __PYX_ERR(0, 133, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[4])) __PYX_ERR(0, 136, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  4:
         values[3] = __Pyx_ArgRef_FASTCALL(__pyx_args, 3);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 133, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 136, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  3:
         values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 133, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 136, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 133, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 136, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 133, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 136, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "create_single_node_gene", 0) < (0)) __PYX_ERR(0, 133, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "create_single_node_gene", 0) < (0)) __PYX_ERR(0, 136, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 6; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("create_single_node_gene", 1, 6, 6, i); __PYX_ERR(0, 133, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("create_single_node_gene", 1, 6, 6, i); __PYX_ERR(0, 136, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 6)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 133, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 136, __pyx_L3_error)
       values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 133, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 136, __pyx_L3_error)
       values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 133, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 136, __pyx_L3_error)
       values[3] = __Pyx_ArgRef_FASTCALL(__pyx_args, 3);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 133, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 136, __pyx_L3_error)
       values[4] = __Pyx_ArgRef_FASTCALL(__pyx_args, 4);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[4])) __PYX_ERR(0, 133, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[4])) __PYX_ERR(0, 136, __pyx_L3_error)
       values[5] = __Pyx_ArgRef_FASTCALL(__pyx_args, 5);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[5])) __PYX_ERR(0, 133, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[5])) __PYX_ERR(0, 136, __pyx_L3_error)
     }
     __pyx_v_node_cls = values[0];
-    __pyx_v_key = __Pyx_PyLong_As_int(values[1]); if (unlikely((__pyx_v_key == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 135, __pyx_L3_error)
-    __pyx_v_bias = __Pyx_PyFloat_AsDouble(values[2]); if (unlikely((__pyx_v_bias == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 136, __pyx_L3_error)
-    __pyx_v_response = __Pyx_PyFloat_AsDouble(values[3]); if (unlikely((__pyx_v_response == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 137, __pyx_L3_error)
+    __pyx_v_key = __Pyx_PyLong_As_int(values[1]); if (unlikely((__pyx_v_key == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 138, __pyx_L3_error)
+    __pyx_v_bias = __Pyx_PyFloat_AsDouble(values[2]); if (unlikely((__pyx_v_bias == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 139, __pyx_L3_error)
+    __pyx_v_response = __Pyx_PyFloat_AsDouble(values[3]); if (unlikely((__pyx_v_response == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 140, __pyx_L3_error)
     __pyx_v_activation = ((PyObject*)values[4]);
     __pyx_v_aggregation = ((PyObject*)values[5]);
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("create_single_node_gene", 1, 6, 6, __pyx_nargs); __PYX_ERR(0, 133, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("create_single_node_gene", 1, 6, 6, __pyx_nargs); __PYX_ERR(0, 136, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -5884,8 +5899,8 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_activation), (&PyUnicode_Type), 1, "activation", 1))) __PYX_ERR(0, 138, __pyx_L1_error)
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_aggregation), (&PyUnicode_Type), 1, "aggregation", 1))) __PYX_ERR(0, 139, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_activation), (&PyUnicode_Type), 1, "activation", 1))) __PYX_ERR(0, 141, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_aggregation), (&PyUnicode_Type), 1, "aggregation", 1))) __PYX_ERR(0, 142, __pyx_L1_error)
   __pyx_r = __pyx_pf_4neat_7_cython_17fast_gene_factory_6create_single_node_gene(__pyx_self, __pyx_v_node_cls, __pyx_v_key, __pyx_v_bias, __pyx_v_response, __pyx_v_activation, __pyx_v_aggregation);
 
   /* function exit code */
@@ -5917,7 +5932,7 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_6create_single_node
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("create_single_node_gene", 0);
 
-  /* "neat/_cython/fast_gene_factory.pyx":157
+  /* "neat/_cython/fast_gene_factory.pyx":160
  * 
  *     """
  *     cdef object gene = object.__new__(node_cls)             # <<<<<<<<<<<<<<
@@ -5931,66 +5946,66 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_6create_single_node
     PyObject *__pyx_callargs[2] = {__pyx_t_2, __pyx_v_node_cls};
     __pyx_t_1 = __Pyx_PyObject_FastCallMethod((PyObject*)__pyx_mstate_global->__pyx_n_u_new, __pyx_callargs+__pyx_t_3, (2-__pyx_t_3) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
     __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 157, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 160, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
   }
   __pyx_v_gene = __pyx_t_1;
   __pyx_t_1 = 0;
 
-  /* "neat/_cython/fast_gene_factory.pyx":158
+  /* "neat/_cython/fast_gene_factory.pyx":161
  *     """
  *     cdef object gene = object.__new__(node_cls)
  *     gene.key = key             # <<<<<<<<<<<<<<
  *     gene.bias = bias
  *     gene.response = response
 */
-  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_key); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 158, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_key); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 161, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_key, __pyx_t_1) < (0)) __PYX_ERR(0, 158, __pyx_L1_error)
+  if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_key, __pyx_t_1) < (0)) __PYX_ERR(0, 161, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "neat/_cython/fast_gene_factory.pyx":159
+  /* "neat/_cython/fast_gene_factory.pyx":162
  *     cdef object gene = object.__new__(node_cls)
  *     gene.key = key
  *     gene.bias = bias             # <<<<<<<<<<<<<<
  *     gene.response = response
  *     gene.activation = activation
 */
-  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_bias); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 159, __pyx_L1_error)
+  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_bias); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 162, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_bias, __pyx_t_1) < (0)) __PYX_ERR(0, 159, __pyx_L1_error)
+  if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_bias, __pyx_t_1) < (0)) __PYX_ERR(0, 162, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "neat/_cython/fast_gene_factory.pyx":160
+  /* "neat/_cython/fast_gene_factory.pyx":163
  *     gene.key = key
  *     gene.bias = bias
  *     gene.response = response             # <<<<<<<<<<<<<<
  *     gene.activation = activation
  *     gene.aggregation = aggregation
 */
-  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_response); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 160, __pyx_L1_error)
+  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_response); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 163, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_response, __pyx_t_1) < (0)) __PYX_ERR(0, 160, __pyx_L1_error)
+  if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_response, __pyx_t_1) < (0)) __PYX_ERR(0, 163, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "neat/_cython/fast_gene_factory.pyx":161
+  /* "neat/_cython/fast_gene_factory.pyx":164
  *     gene.bias = bias
  *     gene.response = response
  *     gene.activation = activation             # <<<<<<<<<<<<<<
  *     gene.aggregation = aggregation
  *     return gene
 */
-  if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_activation, __pyx_v_activation) < (0)) __PYX_ERR(0, 161, __pyx_L1_error)
+  if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_activation, __pyx_v_activation) < (0)) __PYX_ERR(0, 164, __pyx_L1_error)
 
-  /* "neat/_cython/fast_gene_factory.pyx":162
+  /* "neat/_cython/fast_gene_factory.pyx":165
  *     gene.response = response
  *     gene.activation = activation
  *     gene.aggregation = aggregation             # <<<<<<<<<<<<<<
  *     return gene
 */
-  if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_aggregation, __pyx_v_aggregation) < (0)) __PYX_ERR(0, 162, __pyx_L1_error)
+  if (__Pyx_PyObject_SetAttrStr(__pyx_v_gene, __pyx_mstate_global->__pyx_n_u_aggregation, __pyx_v_aggregation) < (0)) __PYX_ERR(0, 165, __pyx_L1_error)
 
-  /* "neat/_cython/fast_gene_factory.pyx":163
+  /* "neat/_cython/fast_gene_factory.pyx":166
  *     gene.activation = activation
  *     gene.aggregation = aggregation
  *     return gene             # <<<<<<<<<<<<<<
@@ -6000,7 +6015,7 @@ static PyObject *__pyx_pf_4neat_7_cython_17fast_gene_factory_6create_single_node
   __pyx_r = __pyx_v_gene;
   goto __pyx_L0;
 
-  /* "neat/_cython/fast_gene_factory.pyx":133
+  /* "neat/_cython/fast_gene_factory.pyx":136
  * 
  * 
  * def create_single_node_gene(             # <<<<<<<<<<<<<<
@@ -6565,7 +6580,7 @@ __Pyx_RefNannySetupContext("PyInit_fast_gene_factory", 0);
 */
   __pyx_t_3 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 20, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  if (PyDict_SetItem(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_return, __pyx_mstate_global->__pyx_n_u_list) < (0)) __PYX_ERR(0, 20, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_return, __pyx_mstate_global->__pyx_n_u_dict) < (0)) __PYX_ERR(0, 20, __pyx_L1_error)
   __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_4neat_7_cython_17fast_gene_factory_1create_connection_genes_batch, 0, __pyx_mstate_global->__pyx_n_u_create_connection_genes_batch, NULL, __pyx_mstate_global->__pyx_n_u_neat__cython_fast_gene_factory, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[0])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 20, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
@@ -6576,64 +6591,64 @@ __Pyx_RefNannySetupContext("PyInit_fast_gene_factory", 0);
   if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_create_connection_genes_batch, __pyx_t_2) < (0)) __PYX_ERR(0, 20, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "neat/_cython/fast_gene_factory.pyx":60
+  /* "neat/_cython/fast_gene_factory.pyx":63
  * 
  * 
  * def create_node_genes_batch(             # <<<<<<<<<<<<<<
  *     node_cls,
  *     list keys,
 */
-  __pyx_t_2 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 60, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 63, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (PyDict_SetItem(__pyx_t_2, __pyx_mstate_global->__pyx_n_u_return, __pyx_mstate_global->__pyx_n_u_list) < (0)) __PYX_ERR(0, 60, __pyx_L1_error)
-  __pyx_t_3 = __Pyx_CyFunction_New(&__pyx_mdef_4neat_7_cython_17fast_gene_factory_3create_node_genes_batch, 0, __pyx_mstate_global->__pyx_n_u_create_node_genes_batch, NULL, __pyx_mstate_global->__pyx_n_u_neat__cython_fast_gene_factory, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[1])); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 60, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_2, __pyx_mstate_global->__pyx_n_u_return, __pyx_mstate_global->__pyx_n_u_list) < (0)) __PYX_ERR(0, 63, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_CyFunction_New(&__pyx_mdef_4neat_7_cython_17fast_gene_factory_3create_node_genes_batch, 0, __pyx_mstate_global->__pyx_n_u_create_node_genes_batch, NULL, __pyx_mstate_global->__pyx_n_u_neat__cython_fast_gene_factory, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[1])); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 63, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount(__pyx_t_3);
   #endif
   __Pyx_CyFunction_SetAnnotationsDict(__pyx_t_3, __pyx_t_2);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_create_node_genes_batch, __pyx_t_3) < (0)) __PYX_ERR(0, 60, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_create_node_genes_batch, __pyx_t_3) < (0)) __PYX_ERR(0, 63, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-  /* "neat/_cython/fast_gene_factory.pyx":103
+  /* "neat/_cython/fast_gene_factory.pyx":106
  * 
  * 
  * def create_single_connection_gene(             # <<<<<<<<<<<<<<
  *     conn_cls,
  *     tuple key,
 */
-  __pyx_t_3 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 103, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 106, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  if (PyDict_SetItem(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_return, __pyx_mstate_global->__pyx_n_u_object) < (0)) __PYX_ERR(0, 103, __pyx_L1_error)
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_4neat_7_cython_17fast_gene_factory_5create_single_connection_gene, 0, __pyx_mstate_global->__pyx_n_u_create_single_connection_gene, NULL, __pyx_mstate_global->__pyx_n_u_neat__cython_fast_gene_factory, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[2])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 103, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_return, __pyx_mstate_global->__pyx_n_u_object) < (0)) __PYX_ERR(0, 106, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_4neat_7_cython_17fast_gene_factory_5create_single_connection_gene, 0, __pyx_mstate_global->__pyx_n_u_create_single_connection_gene, NULL, __pyx_mstate_global->__pyx_n_u_neat__cython_fast_gene_factory, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[2])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 106, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount(__pyx_t_2);
   #endif
   __Pyx_CyFunction_SetAnnotationsDict(__pyx_t_2, __pyx_t_3);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_create_single_connection_gene, __pyx_t_2) < (0)) __PYX_ERR(0, 103, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_create_single_connection_gene, __pyx_t_2) < (0)) __PYX_ERR(0, 106, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "neat/_cython/fast_gene_factory.pyx":133
+  /* "neat/_cython/fast_gene_factory.pyx":136
  * 
  * 
  * def create_single_node_gene(             # <<<<<<<<<<<<<<
  *     node_cls,
  *     int key,
 */
-  __pyx_t_2 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 133, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 136, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (PyDict_SetItem(__pyx_t_2, __pyx_mstate_global->__pyx_n_u_return, __pyx_mstate_global->__pyx_n_u_object) < (0)) __PYX_ERR(0, 133, __pyx_L1_error)
-  __pyx_t_3 = __Pyx_CyFunction_New(&__pyx_mdef_4neat_7_cython_17fast_gene_factory_7create_single_node_gene, 0, __pyx_mstate_global->__pyx_n_u_create_single_node_gene, NULL, __pyx_mstate_global->__pyx_n_u_neat__cython_fast_gene_factory, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[3])); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 133, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_2, __pyx_mstate_global->__pyx_n_u_return, __pyx_mstate_global->__pyx_n_u_object) < (0)) __PYX_ERR(0, 136, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_CyFunction_New(&__pyx_mdef_4neat_7_cython_17fast_gene_factory_7create_single_node_gene, 0, __pyx_mstate_global->__pyx_n_u_create_single_node_gene, NULL, __pyx_mstate_global->__pyx_n_u_neat__cython_fast_gene_factory, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[3])); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 136, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount(__pyx_t_3);
   #endif
   __Pyx_CyFunction_SetAnnotationsDict(__pyx_t_3, __pyx_t_2);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_create_single_node_gene, __pyx_t_3) < (0)) __PYX_ERR(0, 133, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_create_single_node_gene, __pyx_t_3) < (0)) __PYX_ERR(0, 136, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
   /* "neat/_cython/fast_gene_factory.pyx":1
@@ -6683,7 +6698,7 @@ __Pyx_RefNannySetupContext("PyInit_fast_gene_factory", 0);
 
 static int __Pyx_InitCachedBuiltins(__pyx_mstatetype *__pyx_mstate) {
   CYTHON_UNUSED_VAR(__pyx_mstate);
-  __pyx_builtin_object = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_object); if (!__pyx_builtin_object) __PYX_ERR(0, 49, __pyx_L1_error)
+  __pyx_builtin_object = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_object); if (!__pyx_builtin_object) __PYX_ERR(0, 52, __pyx_L1_error)
 
   /* Cached unbound methods */
   __pyx_mstate->__pyx_umethod_PyDict_Type_items.type = (PyObject*)&PyDict_Type;
@@ -6710,31 +6725,31 @@ static int __Pyx_InitCachedConstants(__pyx_mstatetype *__pyx_mstate) {
 static int __Pyx_InitConstants(__pyx_mstatetype *__pyx_mstate) {
   CYTHON_UNUSED_VAR(__pyx_mstate);
   {
-    const struct { const unsigned int length: 8; } index[] = {{1},{179},{8},{34},{39},{34},{5},{20},{10},{11},{11},{12},{18},{4},{6},{18},{8},{29},{23},{29},{23},{7},{7},{8},{4},{1},{10},{11},{13},{5},{3},{4},{4},{8},{10},{1},{8},{30},{7},{8},{2},{5},{6},{3},{12},{8},{9},{6},{6},{12},{10},{8},{6},{6},{7},{116},{109},{60},{53}};
+    const struct { const unsigned int length: 8; } index[] = {{1},{179},{8},{34},{39},{34},{5},{20},{10},{11},{11},{12},{18},{4},{6},{18},{8},{29},{23},{29},{23},{4},{7},{7},{8},{4},{1},{10},{11},{13},{5},{3},{4},{4},{8},{10},{1},{8},{30},{7},{8},{2},{5},{6},{3},{12},{8},{9},{6},{6},{12},{10},{8},{6},{6},{7},{114},{116},{60},{53}};
     #if (CYTHON_COMPRESS_STRINGS) == 2 /* compression: bz2 (737 bytes) */
-const char* const cstring = "BZh91AY&SYVq\021\332\000\000`\177\363\347\375\270\300p\213\245D\257\375\366`\277\377\377\340@@@@@@\000@@\000@\000@\002\234\306[fE\241*h\204\236S\324x\024\364'\250\323\321\006@\000h\032\000\000`\311\006\2024&)\202\236$\321\001\240\000\017P\006\200\000\001\243\3249\204\320\032\003F\214#A\210\323\023&&\203\010\3202\001\223\001(A\032\243z\223'\252z\r5=\004\030\214\000\214\230\000\324\310zM\2435\036|*U\260L\342\364\304{b\014b\031\025R\300\230\312\306\006,\203\310 )i\001\366\314\246p-%H\014\303\014(\265\304\231\021\210\235\270\260\3750\354\340\305\257\345\\D9\031~\216{\207%j\250\304\323\274dx\336>\334\327\217l\365\n\326\332\243\215\313\240\021\245P\306\336\356\325\021\321\266\270\243sV\340\257\240\211\251\227\027\205\013\312\357\233\304\004\n` \237\232AC\307\306\r\271\004\317z\377\273f\343\303w\365\\o\033\002\251q\005>5\023`\312\250\201\230\246\221L(X,F\304Kxn1\007\235c\nv<\3636\253\266\257dT\225\031\343\365\242/B,\"\206X6\321H\363w\n\004\241\026,v\2711\034$\031t\246\\\"\327\030\343\245HC}r\025\2401\020f\0140\222\026\307T\251W\232\311\331O\021\246\2054j\005\006\256F \027\331\033!\002j\363\332\230\232c\306t\211\323\2449P\\\353)zH\322\025\265\330b\226\326;$\277\317\330+\226\347j6\336`\265+L\234h\220\272Z\221S\210\241\241&\033:\231T\2504\300Em\212\215z\305\367\332\362\003\013%*<\255HY\320A\252\361Q\010>\026\363\325\016\"\006\255ER\361<)?7\357\253\320\0347\261pq\274\303\3579]&\020z\024\231\254=Ez\244\202,9\"\252fA\r\212\256(Q;\024\246\254\357\244D\251\025$\214\nH\242\372\3134byO\035d\242\302\025Z\272|\357\014\227(Y\314\264\026\356\227N\032\2444\220\320\300\223=\220\005\274\221\2170\257\016K,\003\014a\022\201I\020@\220%\206\206V\351udd\332\240\021\020\205\210\325t\300\241HZ\030<\210\312\214\002\024\032k\245\r\233\nn\210\227\007\rq~\274\213\2079\212\344\200\306\261h\301\254\314-n\340\031\366V\024>\344\207\341\320)\216\351J\366\037\224\016\340\352@\344:\216\323\274\216\003!\202_\323\376\177\007\361n\230\213\344\005FL\004XL\270\316\"\237\033\346\274\265Z\2171\031\022\265\251\263Y""\302\241\300\256\326\320\253:\335u\362s\3349\240\346\203\024\n@\211\000\371\007\270\273\222)\302\204\202\263\210\216\320";
+const char* const cstring = "BZh91AY&SYo^\315\337\000\000a\377\363\347\375\270\300p\213\245D\257\375\366`\277\377\377\340@@@@@@\000@@\000@\000@\002\234\306[cFBR\020\206\220{T\375@h\206\312\006\200\000\310\r4\321\240\014\r \320L\223FS\004b\243\322\003\324\000\001\352\000\000\000\000z\2070\232\003@h\321\204h1\032bd\304\320a\032\006@2`%\n4\022oJy\020\032h\000\000\000\000\000\003C\324\364jD\354D\267e\352\274_\264\325H_D0\003\304\276V\300\304\301\004#\204\024\241\001\326\213\r\000,E\010\014\303#\n-q\017\"\030\213\302\233\332w\265\375)\325\367\256B:\235~ph\017\345(\250\344\366^[\017\033\313\353\313a\354\263P\245-\242@\340\271\201T\350\206\006\376\336\365\2537\337\002\252\347\245\301Zb\243S-\335\364/\034>L#\022\260\004\026y$\0240\370E\370 \260\365\337\366|\240xp\376\254\r\207\034*\226\340\247\346Qc\207UD\016\245\003&\026\226\013\024\370\245I\212V(\206\203\030g\333\301\241\364\336\330\267\225\0351D\322\234\322\334B\301\261R\325\337R*\027\355JH*E,Y\rb\250\346\221f\251Um\026\267\020P&R\021\263!I\221\212\201\2300\342H[aB\235\030\032\341[e=cM\nh\364\n\rT\230pf\2626\001\304\313\tT\221\031\304#A(\365\272*\240\270\363&\\\210\322\n\346\256\304[\331#)\3776\271X\226\313\332\317\302\301h\226\013#\303\213;\016K\002\220xUB;t\331\250\2503\300In\222\2154\030as\020\024\256R\233\025\251\032\371\3105^(#\026\215\274\325C\250D\325\346\252^\006\nM\223q\225\220\034u\343\001\003c\ry\312\3518\213 \250\036\007\003\007\003)\000\350\024\234\314Z\304:X\3540#I\324\\\312rI\301bFRF\005%#\314Ym\014>\304$\023\021\331B\334\3674\256\214\230\261\253\336N\024\\'\302\217T\206r\031\230\022vt\001o$s\310+\010%u\201\2061\250\242RD\021$\tY\241\225\271\335I\031>\250\204D![\251\322\026\0012\220\2648b#)\270\010Q{\0279\233\276\023\341P\226\336*b\332l.,\254\024\330\200\306\202\321\203\327\014\204)v\321\227\\\337\236\3658G\277k\023\340\345\236\242\371q\003\000^@\272^OC\324t\354$\326\225\206\216/\304W\321\251\217\207\031pi\3276_\032X\214\331\016|\367\356\233\264\346\221\332\007\rIs\307:\002b\000\321\026\340gN\013\266\022X(P\310\313\005\021\006\0248""\200\034\360?\342\356H\247\n\022\r\353\331\273\340";
     PyObject *data = __Pyx_DecompressString(cstring, 737, 2);
     if (unlikely(!data)) __PYX_ERR(0, 1, __pyx_L1_error)
     const char* const bytes = __Pyx_PyBytes_AsString(data);
     #if !CYTHON_ASSUME_SAFE_MACROS
     if (likely(bytes)); else { Py_DECREF(data); __PYX_ERR(0, 1, __pyx_L1_error) }
     #endif
-    #elif (CYTHON_COMPRESS_STRINGS) != 0 /* compression: zlib (634 bytes) */
-const char* const cstring = "x\332\235R;o\3330\020N\200<\234&H\320vhG\272K\206\242\n\014\030E\207\002\205\321<\372Bj\027-\220N\304I:\313l$R&)'\332:j\344\250\321c\177RG\377\204\374\204\036e\347\005g\252 \351>\362\356\370\335w\307w\247\312\"\263#\260\354}iGJ2aX\214\251\010Q\203\305\264d\306j\021Y\324>H\262\376Q\377U\367M\227\201\214\231\306_\030Y\303L\021F)\030\203\206\251!\013\013\221Z!\231-s4\001\3738d\245*\230D\214\231U,\247\270\273\tv\204\222\031\264\036\260}\220RY\260BIN\351B&\373,\026\232H\304\004}\3661\244\006\003\210cNq(\021\354\001\217\232\262\017\206`,Oh\217\017!\262J\227A^^\312\"\313\313\200GJc\220\025T\026h\r%\033\202H\347\345\210,W\332\336\r+2\260\243\245\210\303\357?\373G\234\367\313K\372\016\251\037\374\024/\3557\364\\b\322T|\213\014$\211\306d\276{\013\r\230RFB\005\304\243\nj\021\232P@\363\241\211RZsA\2725D\030Bt\036))y\224\232H\223L\344~\351\033A\255\361*\r\017\301F\243\205S\252\030\037\3306\324\301t)\365\276\363&\025%\204\244y\230*\260\257\273\234\017\013\031\361\306#\004\215e.\355\026\031.\014\277Q\",f\346\034KzM*h\022<\003\022CO\246\342\202h8-$d\036\020{\260\230Z\26045\357\277\340\363\252H\274\314\233\331\250\320\337\264\\\345\234\217\013H\347\007i49\325\201\327\326\020\240\031k\264\205&6\272T\013FB1M\212|\234[\364\305M -\320\\\240HFv\3767\277W\257vW66\257^\254\254?qO]\317\rfk\317\334\370jce}\253Z\257~\270\266\353\314Z{\325\304\235\325\203\032f\255\235\352\304u\335\270^\375K\360\203;\256\333u\307\303/\365\326\364\361\264\355\341i\375r:\230\202\207_\353\267\323\361\037\212\335\255\0227p0[\333\256:\304\271\3439\331\177q\3369\375\223K|\200\207\237\235\255;\365\311\2643\355-\221]\013|\356&\365Y\223\273\326\2526\253\2617-\267\352\315\216\353y\263\353\032\337\236#\337\375B\037\312]D?rmo\266]\247I\372\007\2212\252\340";
-    PyObject *data = __Pyx_DecompressString(cstring, 634, 1);
+    #elif (CYTHON_COMPRESS_STRINGS) != 0 /* compression: zlib (647 bytes) */
+const char* const cstring = "x\332mRKo\323@\020n\244>R\032\265\002\016p\334p\351\001\341*R\2048 \241\212>x\251$\010\244rZ\215\355\211\263\324\336uv\327i}\343\350\343\036}\314\221\237\3041?\241?\201Y'\264\205\324\262=\337\3567\263\337<\366\315\231\262\310\354\030,{[\332\261\222L\030\026c*B\324`1-\231\261ZD\026\265w\222lp<x\321\177\325g c\246\361\007F\3260S\204Q\n\306\240aj\304\302B\244VHf\313\034M\300\336\217X\251\n&\021cf\025\313\311\357n\200\035\243d\006\255\007l\037\244T\026\254P\222S\270\220\311>\213\205&\0211E\037}\002\251\301\000\342\230\223\037J\004{\300\243&\355\203\021\030\313\023\332\343#\210\254\322e\220\227W\262\310\3622\340\221\322\030d\005\245\005ZC\311F \322E:\"\313\225\266w\335\212\014\354x\305\343\350\353\367\3011\347\203\362\212\276#\352\007?\303+\373\005\275\226\2306\031\337\"\003I\2421Y\354\336B\003\246\224\221P\001\351\250\202Z\204&\024\320|h\242\224\326\\P\335\032\"\014!\272\210\224\224<JM\244\251L\344~\351\033A\255\361U\032\036\202\215\306KR\252\030\357\3316\324\301t%\364_\362&4\366S\226\020R\335\243T\201}\331\347|T\310\2107\254\0204\232Ey\267\310pa\370M5\302bf.\260\244\327\244\202\246\3013\240\202\350\311T\\\220\024\247\205\204\314\003\312 XN.X\231\234\347/\371\"3j\200\314\233\371\250\320\337\266\\\345\234O\nH\027\007i49\345\201\177\255!@s\326h\013Mjt\261\226\212\204b\232\026q\234[\364\311M!-\320\\\242H\306v\3617?[\327\235\265\315\255\353gk\033\217\334cw\350\206\363\365'nr\335^\333\330\2566\252o\256\353z\277\333\273U\354\301\274\275WM\335y=\254a\336\356T\247\236\352Tg\365\363\331p\006\036~p\211'=\374\350l\335\253Og\275\331\241\217\207\352\322\301|}\247\352\221\342\356}\212\233w\024W\204\372nR\267\374\261\357\334I\335\255\033\335O\365\366\354\341\254\373_\n\237\353\327\263\311\257\226\327L\334pU\363\251\233\326\347\215\363z\273\332\252&\336\264]\313\233\216;\364f\3275\334\236#n\021\333t\210\335\037\273\364~\340\272\336\354PK|\320\037\\\230\256O";
+    PyObject *data = __Pyx_DecompressString(cstring, 647, 1);
     if (unlikely(!data)) __PYX_ERR(0, 1, __pyx_L1_error)
     const char* const bytes = __Pyx_PyBytes_AsString(data);
     #if !CYTHON_ASSUME_SAFE_MACROS
     if (likely(bytes)); else { Py_DECREF(data); __PYX_ERR(0, 1, __pyx_L1_error) }
     #endif
-    #else /* compression: none (1115 bytes) */
-const char* const bytes = "?Note that Cython is deliberately stricter than PEP-484 and rejects subclasses of builtin types. If you need to pass subclasses then set the 'annotation_typing' directive to False.add_noteneat/_cython/fast_gene_factory.pyxnumpy._core.multiarray failed to importnumpy._core.umath failed to importDTYPE__Pyx_PyDict_NextRefactivationactivationsaggregationaggregationsasyncio.coroutinesbiasbiasescline_in_tracebackconn_clscreate_connection_genes_batchcreate_node_genes_batchcreate_single_connection_genecreate_single_node_geneenabledfloat64__func__geneiinnovationinnovations_is_coroutineitemskeykeyslist__main____module__n__name__neat._cython.fast_gene_factory__new__node_clsnpnumpyobjectpop__qualname__responseresponsesresultreturn__set_name__setdefault__test__valuesweightweights\200\001\360\016\000\006\007\360\"\000\005\022\220\023\220A\220Q\340\004\027\220q\360\006\000\005\t\210\005\210U\220!\2201\340\010\017\210v\220X\230Q\230a\340\010\014\210G\2204\220q\230\001\330\010\014\210H\220F\230!\2301\330\010\014\210L\230\t\240\021\240!\330\010\014\210N\230+\240Q\240a\330\010\014\210O\230<\240q\250\001\330\010\016\210g\220Q\220a\340\004\013\2101\200\001\360\014\000\006\007\360 \000\005\022\220\023\220A\220Q\340\004\027\220q\360\006\000\005\t\210\005\210U\220!\2201\340\010\017\210v\220X\230Q\230a\340\010\014\210G\2204\220q\230\001\330\010\014\210N\230+\240Q\240a\330\010\014\210J\220g\230Q\230a\330\010\014\210K\220t\2301\230G\2401\240A\330\010\016\210g\220Q\220a\340\004\013\2101\200\001\360\016\000\006\007\360\"\000\005\030\220v\230X\240Q\240a\330\004\010\210\007\210q\330\004\010\210\010\220\001\330\004\010\210\014\220A\330\004\010\210\016\220a\330\004\010\210\017\220q\330\004\013\2101\200\001\360\014\000\006\007\360 \000\005\030\220v\230X\240Q\240a\330\004\010\210\007\210q\330\004\010\210\016\220a\330\004\010\210\n\220!\330\004\010\210\013\2201\330\004\013\2101";
+    #else /* compression: none (1124 bytes) */
+const char* const bytes = "?Note that Cython is deliberately stricter than PEP-484 and rejects subclasses of builtin types. If you need to pass subclasses then set the 'annotation_typing' directive to False.add_noteneat/_cython/fast_gene_factory.pyxnumpy._core.multiarray failed to importnumpy._core.umath failed to importDTYPE__Pyx_PyDict_NextRefactivationactivationsaggregationaggregationsasyncio.coroutinesbiasbiasescline_in_tracebackconn_clscreate_connection_genes_batchcreate_node_genes_batchcreate_single_connection_genecreate_single_node_genedictenabledfloat64__func__geneiinnovationinnovations_is_coroutineitemskeykeyslist__main____module__n__name__neat._cython.fast_gene_factory__new__node_clsnpnumpyobjectpop__qualname__responseresponsesresultreturn__set_name__setdefault__test__valuesweightweights\200\001\360\014\000\006\007\360\"\000\005\022\220\023\220A\220Q\340\004\027\220q\360\010\000\005\t\210\005\210U\220!\2201\330\010\016\210d\220!\2201\340\010\017\210v\220X\230Q\230a\340\010\014\210G\2201\330\010\014\210N\230+\240Q\240a\330\010\014\210J\220g\230Q\230a\330\010\014\210K\220t\2301\230G\2401\240A\330\010\016\210a\210w\220a\340\004\013\2101\200\001\360\016\000\006\007\360\"\000\005\022\220\023\220A\220Q\340\004\027\220q\360\006\000\005\t\210\005\210U\220!\2201\340\010\017\210v\220X\230Q\230a\340\010\014\210G\2204\220q\230\001\330\010\014\210H\220F\230!\2301\330\010\014\210L\230\t\240\021\240!\330\010\014\210N\230+\240Q\240a\330\010\014\210O\230<\240q\250\001\330\010\016\210g\220Q\220a\340\004\013\2101\200\001\360\016\000\006\007\360\"\000\005\030\220v\230X\240Q\240a\330\004\010\210\007\210q\330\004\010\210\010\220\001\330\004\010\210\014\220A\330\004\010\210\016\220a\330\004\010\210\017\220q\330\004\013\2101\200\001\360\014\000\006\007\360 \000\005\030\220v\230X\240Q\240a\330\004\010\210\007\210q\330\004\010\210\016\220a\330\004\010\210\n\220!\330\004\010\210\013\2201\330\004\013\2101";
     PyObject *data = NULL;
     CYTHON_UNUSED_VAR(__Pyx_DecompressString);
     #endif
     PyObject **stringtab = __pyx_mstate->__pyx_string_tab;
     Py_ssize_t pos = 0;
-    for (int i = 0; i < 55; i++) {
+    for (int i = 0; i < 56; i++) {
       Py_ssize_t bytes_length = index[i].length;
       PyObject *string = PyUnicode_DecodeUTF8(bytes + pos, bytes_length, NULL);
       if (likely(string) && i >= 6) PyUnicode_InternInPlace(&string);
@@ -6745,7 +6760,7 @@ const char* const bytes = "?Note that Cython is deliberately stricter than PEP-4
       stringtab[i] = string;
       pos += bytes_length;
     }
-    for (int i = 55; i < 59; i++) {
+    for (int i = 56; i < 60; i++) {
       Py_ssize_t bytes_length = index[i].length;
       PyObject *string = PyBytes_FromStringAndSize(bytes + pos, bytes_length);
       stringtab[i] = string;
@@ -6756,14 +6771,14 @@ const char* const bytes = "?Note that Cython is deliberately stricter than PEP-4
       }
     }
     Py_XDECREF(data);
-    for (Py_ssize_t i = 0; i < 59; i++) {
+    for (Py_ssize_t i = 0; i < 60; i++) {
       if (unlikely(PyObject_Hash(stringtab[i]) == -1)) {
         __PYX_ERR(0, 1, __pyx_L1_error)
       }
     }
     #if CYTHON_IMMORTAL_CONSTANTS
     {
-      PyObject **table = stringtab + 55;
+      PyObject **table = stringtab + 56;
       for (Py_ssize_t i=0; i<4; ++i) {
         #if CYTHON_COMPILING_IN_CPYTHON_FREETHREADING
         Py_SET_REFCNT(table[i], _Py_IMMORTAL_REFCNT_LOCAL);
@@ -6802,22 +6817,22 @@ static int __Pyx_CreateCodeObjects(__pyx_mstatetype *__pyx_mstate) {
   PyObject* tuple_dedup_map = PyDict_New();
   if (unlikely(!tuple_dedup_map)) return -1;
   {
-    const __Pyx_PyCode_New_function_description descr = {5, 0, 0, 9, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 20};
-    PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_conn_cls, __pyx_mstate->__pyx_n_u_keys, __pyx_mstate->__pyx_n_u_innovations, __pyx_mstate->__pyx_n_u_weights, __pyx_mstate->__pyx_n_u_enabled, __pyx_mstate->__pyx_n_u_n, __pyx_mstate->__pyx_n_u_i, __pyx_mstate->__pyx_n_u_result, __pyx_mstate->__pyx_n_u_gene};
-    __pyx_mstate_global->__pyx_codeobj_tab[0] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_neat__cython_fast_gene_factory_p, __pyx_mstate->__pyx_n_u_create_connection_genes_batch, __pyx_mstate->__pyx_kp_b_iso88591_AQ_q_U_1_vXQa_G4q_N_Qa_JgQa_Kt1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[0])) goto bad;
+    const __Pyx_PyCode_New_function_description descr = {5, 0, 0, 10, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 20};
+    PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_conn_cls, __pyx_mstate->__pyx_n_u_keys, __pyx_mstate->__pyx_n_u_innovations, __pyx_mstate->__pyx_n_u_weights, __pyx_mstate->__pyx_n_u_enabled, __pyx_mstate->__pyx_n_u_n, __pyx_mstate->__pyx_n_u_i, __pyx_mstate->__pyx_n_u_result, __pyx_mstate->__pyx_n_u_gene, __pyx_mstate->__pyx_n_u_key};
+    __pyx_mstate_global->__pyx_codeobj_tab[0] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_neat__cython_fast_gene_factory_p, __pyx_mstate->__pyx_n_u_create_connection_genes_batch, __pyx_mstate->__pyx_kp_b_iso88591_AQ_q_U_1_d_1_vXQa_G1_N_Qa_JgQa, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[0])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {6, 0, 0, 10, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 60};
+    const __Pyx_PyCode_New_function_description descr = {6, 0, 0, 10, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 63};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_node_cls, __pyx_mstate->__pyx_n_u_keys, __pyx_mstate->__pyx_n_u_biases, __pyx_mstate->__pyx_n_u_responses, __pyx_mstate->__pyx_n_u_activations, __pyx_mstate->__pyx_n_u_aggregations, __pyx_mstate->__pyx_n_u_n, __pyx_mstate->__pyx_n_u_i, __pyx_mstate->__pyx_n_u_result, __pyx_mstate->__pyx_n_u_gene};
     __pyx_mstate_global->__pyx_codeobj_tab[1] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_neat__cython_fast_gene_factory_p, __pyx_mstate->__pyx_n_u_create_node_genes_batch, __pyx_mstate->__pyx_kp_b_iso88591_AQ_q_U_1_vXQa_G4q_HF_1_L_N_Qa_O, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[1])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {5, 0, 0, 6, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 103};
+    const __Pyx_PyCode_New_function_description descr = {5, 0, 0, 6, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 106};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_conn_cls, __pyx_mstate->__pyx_n_u_key, __pyx_mstate->__pyx_n_u_innovation, __pyx_mstate->__pyx_n_u_weight, __pyx_mstate->__pyx_n_u_enabled, __pyx_mstate->__pyx_n_u_gene};
     __pyx_mstate_global->__pyx_codeobj_tab[2] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_neat__cython_fast_gene_factory_p, __pyx_mstate->__pyx_n_u_create_single_connection_gene, __pyx_mstate->__pyx_kp_b_iso88591_vXQa_q_a_1_1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[2])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {6, 0, 0, 7, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 133};
+    const __Pyx_PyCode_New_function_description descr = {6, 0, 0, 7, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 136};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_node_cls, __pyx_mstate->__pyx_n_u_key, __pyx_mstate->__pyx_n_u_bias, __pyx_mstate->__pyx_n_u_response, __pyx_mstate->__pyx_n_u_activation, __pyx_mstate->__pyx_n_u_aggregation, __pyx_mstate->__pyx_n_u_gene};
     __pyx_mstate_global->__pyx_codeobj_tab[3] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_neat__cython_fast_gene_factory_p, __pyx_mstate->__pyx_n_u_create_single_node_gene, __pyx_mstate->__pyx_kp_b_iso88591_vXQa_q_A_a_q_1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[3])) goto bad;
   }
@@ -8992,6 +9007,17 @@ static const char* __Pyx_BufFmt_CheckString(__Pyx_BufFmt_Context* ctx, const cha
   fail:;
     __Pyx_SafeReleaseBuffer(buf);
     return -1;
+  }
+  
+/* RaiseUnexpectedTypeError */
+  static int
+  __Pyx_RaiseUnexpectedTypeError(const char *expected, PyObject *obj)
+  {
+      __Pyx_TypeName obj_type_name = __Pyx_PyType_GetFullyQualifiedName(Py_TYPE(obj));
+      PyErr_Format(PyExc_TypeError, "Expected %s, got " __Pyx_FMT_TYPENAME,
+                   expected, obj_type_name);
+      __Pyx_DECREF_TypeName(obj_type_name);
+      return 0;
   }
   
 /* PyObjectFastCallMethod */

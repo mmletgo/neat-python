@@ -23,11 +23,12 @@ def create_connection_genes_batch(
     list innovations,
     np.ndarray[DTYPE_t, ndim=1] weights,
     np.ndarray[np.uint8_t, ndim=1] enabled
-) -> list:
+) -> dict:
     """
     批量创建连接基因对象
 
     绕过 DefaultConnectionGene.__init__ 的断言检查，直接创建对象并设置属性。
+    直接返回字典，避免调用方再次遍历添加。
 
     Args:
         conn_cls: DefaultConnectionGene 类
@@ -37,22 +38,24 @@ def create_connection_genes_batch(
         enabled: 启用状态数组 (numpy uint8)
 
     Returns:
-        连接基因对象列表
+        连接基因字典 {key: gene, ...}
     """
     cdef int n = len(keys)
     cdef int i
-    cdef list result = []
+    cdef dict result = {}
     cdef object gene
+    cdef tuple key
 
     for i in range(n):
+        key = keys[i]
         # 使用 object.__new__ 绕过 __init__ 断言
         gene = object.__new__(conn_cls)
         # 直接设置 __slots__ 属性
-        gene.key = keys[i]
+        gene.key = key
         gene.innovation = innovations[i]
         gene.weight = weights[i]
         gene.enabled = bool(enabled[i])
-        result.append(gene)
+        result[key] = gene
 
     return result
 
