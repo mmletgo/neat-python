@@ -187,7 +187,10 @@ class DefaultGenomeConfig:
 
         new_id = next(self.node_indexer)
 
-        assert new_id not in node_dict
+        # 多竞技场模式下，迁移的基因组可能有更大的节点 ID
+        # 如果生成的 ID 已存在，持续递增直到找到不存在的 ID
+        while new_id in node_dict:
+            new_id = next(self.node_indexer)
 
         return new_id
 

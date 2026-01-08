@@ -17,6 +17,13 @@ import numpy as np
 cimport numpy as np
 from libc.math cimport tanh, exp, sin, cos, fabs
 
+# 【关键修复】将导入移到模块级别，避免多线程并发导入导致死锁
+# Python 的导入机制有全局锁，多线程并发导入可能导致死锁
+try:
+    from neat._cython.fast_graphs import fast_feed_forward_layers as _feed_forward_layers
+except ImportError:
+    from neat.graphs import feed_forward_layers as _feed_forward_layers
+
 # NumPy 类型声明
 DTYPE = np.float64
 ctypedef np.float64_t DTYPE_t
@@ -105,11 +112,8 @@ cdef class FastFeedForwardNetwork:
         Returns:
             FastFeedForwardNetwork 实例
         """
-        # 尝试使用 Cython 优化版本
-        try:
-            from neat._cython.fast_graphs import fast_feed_forward_layers as feed_forward_layers
-        except ImportError:
-            from neat.graphs import feed_forward_layers
+        # 使用模块级别导入的 feed_forward_layers（避免多线程并发导入死锁）
+        feed_forward_layers = _feed_forward_layers
 
         cdef FastFeedForwardNetwork network = FastFeedForwardNetwork()
 
