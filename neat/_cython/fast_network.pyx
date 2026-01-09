@@ -292,12 +292,12 @@ cdef class FastFeedForwardNetwork:
         # 调用 Cython 优化的前向传播
         self._forward_pass()
 
-        # 返回输出值
-        cdef list result = []
+        # 返回输出值（numpy 数组，避免 list 创建开销）
+        cdef np.ndarray[DTYPE_t, ndim=1] result = np.empty(self.num_outputs, dtype=DTYPE)
         cdef int out_idx
         for i in range(self.num_outputs):
             out_idx = self.id_to_idx[self.output_keys[i]]
-            result.append(values[out_idx])
+            result[i] = values[out_idx]
 
         return result
 

@@ -1,5 +1,6 @@
 from neat.graphs import feed_forward_layers
 import random
+import numpy as np
 
 class FeedForwardNetwork:
     def __init__(self, inputs, outputs, node_evals):
@@ -22,7 +23,8 @@ class FeedForwardNetwork:
             s = agg_func(node_inputs)
             self.values[node] = act_func(bias + response * s)
 
-        return [self.values[i] for i in self.output_nodes]
+        # 返回 numpy 数组而非 list，与 Cython 版本保持一致
+        return np.array([self.values[i] for i in self.output_nodes], dtype=np.float64)
 
     @staticmethod
     def create(genome, config, unique_value=False, random_values=False):
