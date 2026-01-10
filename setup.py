@@ -42,21 +42,39 @@ def get_extensions():
         "fast_network.pyx",
         "fast_gene_factory.pyx",
         "fast_innovation.pyx",
+        "fast_speciate.pyx",
+        "fast_reproduction.pyx",
     ]
+
+    # 需要 OpenMP 支持的模块
+    openmp_modules = {"fast_network.pyx", "fast_speciate.pyx"}
 
     extensions = []
     for pyx_file in pyx_files:
         pyx_path = os.path.join(cython_dir, pyx_file)
         if os.path.exists(pyx_path):
             module_name = f"neat._cython.{pyx_file[:-4]}"  # 去掉 .pyx
-            extensions.append(
-                Extension(
-                    module_name,
-                    [pyx_path],
-                    include_dirs=[numpy.get_include()],
-                    define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
+            # 需要 OpenMP 支持的模块
+            if pyx_file in openmp_modules:
+                extensions.append(
+                    Extension(
+                        module_name,
+                        [pyx_path],
+                        include_dirs=[numpy.get_include()],
+                        define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
+                        extra_compile_args=["-fopenmp"],
+                        extra_link_args=["-fopenmp"],
+                    )
                 )
-            )
+            else:
+                extensions.append(
+                    Extension(
+                        module_name,
+                        [pyx_path],
+                        include_dirs=[numpy.get_include()],
+                        define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
+                    )
+                )
 
     return extensions
 

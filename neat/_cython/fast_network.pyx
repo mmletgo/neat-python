@@ -11,11 +11,13 @@
 2. 使用 Cython 类型声明加速循环
 3. 避免运行时的 list.append 操作
 4. 使用 CSR 格式存储稀疏连接矩阵
+5. 支持 nogil 多线程并行
 """
 
 import numpy as np
 cimport numpy as np
 from libc.math cimport tanh, exp, sin, cos, fabs
+from cython.parallel cimport prange, parallel
 
 # 【关键修复】将导入移到模块级别，避免多线程并发导入导致死锁
 # Python 的导入机制有全局锁，多线程并发导入可能导致死锁
@@ -26,7 +28,8 @@ except ImportError:
 
 # NumPy 类型声明
 DTYPE = np.float64
-ctypedef np.float64_t DTYPE_t
+# DTYPE_t 已在 numpy.pxd 中定义为 float64_t
+from numpy cimport float64_t as DTYPE_t
 
 # 激活函数类型枚举
 DEF ACT_TANH = 0
@@ -70,31 +73,17 @@ cdef class FastFeedForwardNetwork:
 
     在创建时将 NEAT 网络结构转换为优化的数组表示，
     前向传播时使用 Cython 循环加速计算。
+
+    属性（在 fast_network.pxd 中声明）:
+    - num_inputs, num_outputs: 输入输出节点数
+    - input_keys, output_keys: 输入输出节点 ID 数组
+    - num_nodes: 总节点数（不含输入）
+    - node_ids, biases, responses, act_types: 节点信息数组
+    - conn_indptr, conn_sources, conn_weights: CSR 格式连接信息
+    - id_to_idx: 节点 ID 到索引的映射
+    - values: 前向传播值数组
+    - output_indices: 预计算的输出索引
     """
-
-    # 输入输出节点信息
-    cdef public int num_inputs
-    cdef public int num_outputs
-    cdef public np.ndarray input_keys   # 输入节点 ID
-    cdef public np.ndarray output_keys  # 输出节点 ID
-
-    # 节点计算信息（按拓扑顺序）
-    cdef public int num_nodes           # 总节点数（不含输入）
-    cdef public np.ndarray node_ids     # 节点 ID 数组
-    cdef public np.ndarray biases       # 偏置数组
-    cdef public np.ndarray responses    # 响应系数数组
-    cdef public np.ndarray act_types    # 激活函数类型数组
-
-    # 连接信息（CSR 格式）
-    cdef public np.ndarray conn_indptr  # 每个节点的连接起始索引
-    cdef public np.ndarray conn_sources # 连接源节点索引（映射后）
-    cdef public np.ndarray conn_weights # 连接权重
-
-    # 节点 ID 到索引的映射
-    cdef dict id_to_idx
-
-    # 值数组（用于前向传播）
-    cdef public np.ndarray values
 
     def __init__(self):
         """初始化空网络，由 create 方法填充"""
@@ -172,6 +161,7 @@ cdef class FastFeedForwardNetwork:
             network.conn_indptr = np.zeros(1, dtype=np.int32)
             network.conn_sources = np.array([], dtype=np.int32)
             network.conn_weights = np.array([], dtype=DTYPE)
+            network.output_indices = np.array([], dtype=np.int32)
             return network
 
         # 预分配节点相关数组
@@ -259,68 +249,143 @@ cdef class FastFeedForwardNetwork:
         network.conn_sources = conn_sources
         network.conn_weights = conn_weights
 
+        # 预计算输出索引（避免每次 activate 时访问 dict）
+        cdef np.ndarray[np.int32_t, ndim=1] output_idx_arr = np.empty(num_outputs, dtype=np.int32)
+        for i in range(num_outputs):
+            output_idx_arr[i] = id_to_idx[output_keys[i]]
+        network.output_indices = output_idx_arr
+
         return network
 
-    def activate(self, inputs):
+    cpdef np.ndarray activate(self, inputs):
         """
-        前向传播（Python 接口）
+        前向传播（Python/Cython 混合接口）
+
+        优化：
+        - 使用 cpdef 减少 Python 调用开销
+        - 输入复制和计算都尽量释放 GIL
+        - 使用预计算的输出索引，避免每次访问 dict
 
         Args:
             inputs: 输入值列表或 ndarray
 
         Returns:
-            输出值列表
+            输出值 numpy 数组
         """
-        cdef int i
-        cdef np.ndarray[DTYPE_t, ndim=1] values = self.values
+        cdef int i, num_inputs, num_outputs
+        cdef double[:] values_view = self.values
         cdef np.ndarray[DTYPE_t, ndim=1] input_arr
+        cdef double[:] input_view
+        cdef np.ndarray[DTYPE_t, ndim=1] result
+        cdef int[:] output_indices_view = self.output_indices
+        cdef int out_idx
 
-        # 支持 list 和 ndarray 输入
+        num_inputs = self.num_inputs
+        num_outputs = self.num_outputs
+
+        # 处理输入（需要 GIL 进行类型检查）
         if isinstance(inputs, np.ndarray):
-            if len(inputs) != self.num_inputs:
-                raise RuntimeError(f"Expected {self.num_inputs} inputs, got {len(inputs)}")
-            # 直接复制 ndarray
+            if len(inputs) != num_inputs:
+                raise RuntimeError(f"Expected {num_inputs} inputs, got {len(inputs)}")
             input_arr = inputs.astype(DTYPE, copy=False)
-            values[:self.num_inputs] = input_arr
+            input_view = input_arr
         else:
-            # 原有的 list 处理逻辑
-            if len(inputs) != self.num_inputs:
-                raise RuntimeError(f"Expected {self.num_inputs} inputs, got {len(inputs)}")
-            for i in range(self.num_inputs):
-                values[i] = inputs[i]
+            if len(inputs) != num_inputs:
+                raise RuntimeError(f"Expected {num_inputs} inputs, got {len(inputs)}")
+            input_arr = np.array(inputs, dtype=DTYPE)
+            input_view = input_arr
 
-        # 调用 Cython 优化的前向传播
+        # 预分配输出数组（需要 GIL）
+        result = np.empty(num_outputs, dtype=DTYPE)
+        cdef double[:] result_view = result
+
+        # 释放 GIL 执行核心计算
+        with nogil:
+            # 复制输入数据
+            for i in range(num_inputs):
+                values_view[i] = input_view[i]
+
+        # 调用 Cython 优化的前向传播（内部也释放 GIL）
         self._forward_pass()
 
-        # 返回输出值（numpy 数组，避免 list 创建开销）
-        cdef np.ndarray[DTYPE_t, ndim=1] result = np.empty(self.num_outputs, dtype=DTYPE)
-        cdef int out_idx
-        for i in range(self.num_outputs):
-            out_idx = self.id_to_idx[self.output_keys[i]]
-            result[i] = values[out_idx]
+        # 释放 GIL 提取输出（使用预计算的索引）
+        with nogil:
+            for i in range(num_outputs):
+                out_idx = output_indices_view[i]
+                result_view[i] = values_view[out_idx]
 
         return result
 
     cdef void _forward_pass(self) noexcept:
         """
-        Cython 优化的前向传播核心
+        Cython 优化的前向传播核心（释放 GIL 支持多线程并行）
         """
-        cdef np.ndarray[DTYPE_t, ndim=1] values = self.values
-        cdef np.ndarray[DTYPE_t, ndim=1] biases = self.biases
-        cdef np.ndarray[DTYPE_t, ndim=1] responses = self.responses
-        cdef np.ndarray[np.int32_t, ndim=1] act_types = self.act_types
-        cdef np.ndarray[np.int32_t, ndim=1] conn_indptr = self.conn_indptr
-        cdef np.ndarray[np.int32_t, ndim=1] conn_sources = self.conn_sources
-        cdef np.ndarray[DTYPE_t, ndim=1] conn_weights = self.conn_weights
+        # 使用 typed memoryview 替代 ndarray，支持 nogil
+        cdef double[:] values = self.values
+        cdef double[:] biases = self.biases
+        cdef double[:] responses = self.responses
+        cdef int[:] act_types = self.act_types
+        cdef int[:] conn_indptr = self.conn_indptr
+        cdef int[:] conn_sources = self.conn_sources
+        cdef double[:] conn_weights = self.conn_weights
 
         cdef int num_nodes = self.num_nodes
         cdef int num_inputs = self.num_inputs
         cdef int i, j, start, end, src_idx
         cdef double node_sum, weighted_input
 
-        # 按拓扑顺序计算每个节点
+        # 释放 GIL 执行计算，允许多线程真正并行
+        with nogil:
+            # 按拓扑顺序计算每个节点
+            for i in range(num_nodes):
+                # 计算加权输入和
+                start = conn_indptr[i]
+                end = conn_indptr[i + 1]
+                node_sum = 0.0
+
+                for j in range(start, end):
+                    src_idx = conn_sources[j]
+                    node_sum += values[src_idx] * conn_weights[j]
+
+                # 应用偏置、响应系数和激活函数
+                weighted_input = biases[i] + responses[i] * node_sum
+                values[num_inputs + i] = activate(weighted_input, act_types[i])
+
+    cdef void activate_nogil(
+        self,
+        double[:] inputs,
+        double[:] outputs,
+    ) noexcept nogil:
+        """完全 nogil 的前向传播，可从外部 nogil 块调用
+
+        此方法允许在多线程环境中真正并行执行神经网络计算。
+        调用者需要确保 inputs 和 outputs 的大小正确。
+
+        Args:
+            inputs: 输入数组 (memoryview, 大小 = num_inputs)
+            outputs: 输出数组 (memoryview, 大小 = num_outputs)
+        """
+        cdef double[:] values = self.values
+        cdef double[:] biases = self.biases
+        cdef double[:] responses = self.responses
+        cdef int[:] act_types = self.act_types
+        cdef int[:] conn_indptr = self.conn_indptr
+        cdef int[:] conn_sources = self.conn_sources
+        cdef double[:] conn_weights = self.conn_weights
+        cdef int[:] output_indices = self.output_indices
+
+        cdef int num_nodes = self.num_nodes
+        cdef int num_inputs = self.num_inputs
+        cdef int num_outputs = self.num_outputs
+        cdef int i, j, start, end, src_idx, out_idx
+        cdef double node_sum, weighted_input
+
+        # 1. 复制输入到 values 数组
+        for i in range(num_inputs):
+            values[i] = inputs[i]
+
+        # 2. 前向传播
         for i in range(num_nodes):
-            # 计算加权输入和
             start = conn_indptr[i]
             end = conn_indptr[i + 1]
             node_sum = 0.0
@@ -329,6 +394,95 @@ cdef class FastFeedForwardNetwork:
                 src_idx = conn_sources[j]
                 node_sum += values[src_idx] * conn_weights[j]
 
-            # 应用偏置、响应系数和激活函数
             weighted_input = biases[i] + responses[i] * node_sum
             values[num_inputs + i] = activate(weighted_input, act_types[i])
+
+        # 3. 提取输出
+        for i in range(num_outputs):
+            out_idx = output_indices[i]
+            outputs[i] = values[out_idx]
+
+    cdef void _forward_pass_with_io(
+        self,
+        double[:] inputs,
+        double[:] outputs,
+    ) noexcept:
+        """带输入输出的前向传播（Cython 优化，需要 GIL）
+
+        与 activate_nogil 类似，但不使用 nogil，因为需要访问 Python 对象属性。
+        主要用于批量处理场景。
+
+        Args:
+            inputs: 输入数组 (memoryview, 大小 = num_inputs)
+            outputs: 输出数组 (memoryview, 大小 = num_outputs)
+        """
+        cdef double[:] values = self.values
+        cdef double[:] biases = self.biases
+        cdef double[:] responses = self.responses
+        cdef int[:] act_types = self.act_types
+        cdef int[:] conn_indptr = self.conn_indptr
+        cdef int[:] conn_sources = self.conn_sources
+        cdef double[:] conn_weights = self.conn_weights
+        cdef int[:] output_indices = self.output_indices
+
+        cdef int num_nodes = self.num_nodes
+        cdef int num_inputs = self.num_inputs
+        cdef int num_outputs = self.num_outputs
+        cdef int i, j, start, end, src_idx, out_idx
+        cdef double node_sum, weighted_input
+
+        # 1. 复制输入到 values 数组
+        for i in range(num_inputs):
+            values[i] = inputs[i]
+
+        # 2. 前向传播
+        for i in range(num_nodes):
+            start = conn_indptr[i]
+            end = conn_indptr[i + 1]
+            node_sum = 0.0
+
+            for j in range(start, end):
+                src_idx = conn_sources[j]
+                node_sum += values[src_idx] * conn_weights[j]
+
+            weighted_input = biases[i] + responses[i] * node_sum
+            values[num_inputs + i] = activate(weighted_input, act_types[i])
+
+        # 3. 提取输出
+        for i in range(num_outputs):
+            out_idx = output_indices[i]
+            outputs[i] = values[out_idx]
+
+
+def batch_activate_parallel(
+    list networks,
+    np.ndarray[DTYPE_t, ndim=2] inputs,
+    np.ndarray[DTYPE_t, ndim=2] outputs,
+    int num_threads=0,
+):
+    """批量激活多个网络
+
+    虽然名为 parallel，但由于 Python GIL 和对象访问限制，
+    目前实现为串行执行。比纯 Python 循环更快，因为使用了
+    Cython 类型化和 nogil 块。
+
+    Args:
+        networks: FastFeedForwardNetwork 实例列表
+        inputs: 2D 输入数组 [num_networks, num_inputs]
+        outputs: 2D 输出数组 [num_networks, num_outputs]（会被填充）
+        num_threads: 线程数（未使用）
+
+    Returns:
+        None (结果写入 outputs 数组)
+    """
+    cdef int n = len(networks)
+    cdef int i
+    cdef FastFeedForwardNetwork net
+    cdef double[:, :] inputs_view = inputs
+    cdef double[:, :] outputs_view = outputs
+
+    # 串行执行，但使用 Cython 优化
+    for i in range(n):
+        net = <FastFeedForwardNetwork>networks[i]
+        # 调用优化的 activate 方法（不使用 nogil 版本，因为需要访问 Python 对象）
+        net._forward_pass_with_io(inputs_view[i], outputs_view[i])

@@ -9,6 +9,8 @@ Cython 优化模块
 - fast_genes: 向量化基因操作
 - fast_genome: 向量化基因组变异
 - fast_graphs: 优化图算法
+- fast_speciate: 优化物种划分
+- fast_reproduction: 优化繁殖过程
 """
 
 # 尝试导入 Cython 模块
@@ -76,6 +78,25 @@ try:
     from neat._cython.fast_innovation import (
         fast_get_innovations_batch,
         fast_get_innovations_batch_array,
+    )
+    from neat._cython.fast_speciate import (
+        FastSpeciator,
+        FastGenomeDistanceCache,
+        SpeciateConfig,
+        compute_genome_distance,
+        compute_distance_matrix,
+        fast_speciate,
+        compute_distances_to_representatives,
+    )
+    from neat._cython.fast_reproduction import (
+        ReproductionConfig,
+        compute_spawn_fast,
+        adjust_spawn_exact_fast,
+        compute_adjusted_fitness_fast,
+        reproduce_species_fast,
+        reproduce_fast,
+        reproduce_populations_batch,
+        create_new_genomes_fast,
     )
     _CYTHON_AVAILABLE = True
 except ImportError:
