@@ -4,12 +4,12 @@ from itertools import count
 from neat.config import ConfigParameter, DefaultClassConfig
 from neat.math_util import mean, stdev
 
-# Cython 优化的物种划分
-# 注意：当前并行实现由于数据提取和 O(n²) 键查找开销，
-# 对于 NEAT 的典型种群规模反而更慢，暂时禁用
+# 尝试导入 Cython 优化的物种划分
+# 注意：当前实现由于无法绕过 GIL 进行并行化，性能反而更差
+# 暂时禁用，等待真正的并行化实现
 try:
     from neat._cython.fast_speciate import fast_speciate
-    _USE_FAST_SPECIATE = False  # 性能不佳，暂时禁用
+    _USE_FAST_SPECIATE = False  # 暂时禁用
 except ImportError:
     _USE_FAST_SPECIATE = False
 

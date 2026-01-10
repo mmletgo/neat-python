@@ -257,6 +257,110 @@ cdef class FastFeedForwardNetwork:
 
         return network
 
+    @staticmethod
+    def create_from_params(
+        int num_inputs,
+        int num_outputs,
+        np.ndarray input_keys,
+        np.ndarray output_keys,
+        int num_nodes,
+        np.ndarray node_ids,
+        np.ndarray biases,
+        np.ndarray responses,
+        np.ndarray act_types,
+        np.ndarray conn_indptr,
+        np.ndarray conn_sources,
+        np.ndarray conn_weights,
+        np.ndarray output_indices,
+    ):
+        """
+        从预序列化的参数创建快速网络
+
+        此方法绕过 NEAT 基因组解析，直接使用预计算的网络参数创建网络。
+        用于在并行进化后快速重建网络，避免反序列化 NEAT 基因组的开销。
+
+        Args:
+            num_inputs: 输入节点数
+            num_outputs: 输出节点数
+            input_keys: 输入节点 ID 数组 (int32)
+            output_keys: 输出节点 ID 数组 (int32)
+            num_nodes: 非输入节点数
+            node_ids: 节点 ID 数组 (int32)
+            biases: 偏置数组 (float64)
+            responses: 响应系数数组 (float64)
+            act_types: 激活函数类型数组 (int32)
+            conn_indptr: 连接索引指针数组 (int32, CSR 格式)
+            conn_sources: 连接源节点数组 (int32)
+            conn_weights: 连接权重数组 (float64)
+            output_indices: 输出节点索引数组 (int32)
+
+        Returns:
+            FastFeedForwardNetwork 实例
+        """
+        cdef FastFeedForwardNetwork network = FastFeedForwardNetwork()
+
+        network.num_inputs = num_inputs
+        network.num_outputs = num_outputs
+        network.input_keys = input_keys.astype(np.int32, copy=False)
+        network.output_keys = output_keys.astype(np.int32, copy=False)
+        network.num_nodes = num_nodes
+        network.node_ids = node_ids.astype(np.int32, copy=False)
+        network.biases = biases.astype(DTYPE, copy=False)
+        network.responses = responses.astype(DTYPE, copy=False)
+        network.act_types = act_types.astype(np.int32, copy=False)
+        network.conn_indptr = conn_indptr.astype(np.int32, copy=False)
+        network.conn_sources = conn_sources.astype(np.int32, copy=False)
+        network.conn_weights = conn_weights.astype(DTYPE, copy=False)
+        network.output_indices = output_indices.astype(np.int32, copy=False)
+        network.values = np.zeros(num_inputs + num_nodes, dtype=DTYPE)
+
+        # 构建 id_to_idx 映射（用于其他可能需要的操作）
+        cdef dict id_to_idx = {}
+        cdef int idx = 0
+        for i in range(num_inputs):
+            id_to_idx[int(input_keys[i])] = idx
+            idx += 1
+        for i in range(num_nodes):
+            id_to_idx[int(node_ids[i])] = idx
+            idx += 1
+        network.id_to_idx = id_to_idx
+
+        return network
+
+    def get_params(self):
+        """
+        获取网络参数用于序列化
+
+        Returns:
+            包含所有网络参数的字典
+        """
+        return {
+            'num_inputs': self.num_inputs,
+            'num_outputs': self.num_outputs,
+            'input_keys': self.input_keys,
+            'output_keys': self.output_keys,
+            'num_nodes': self.num_nodes,
+            'node_ids': self.node_ids,
+            'biases': self.biases,
+            'responses': self.responses,
+            'act_types': self.act_types,
+            'conn_indptr': self.conn_indptr,
+            'conn_sources': self.conn_sources,
+            'conn_weights': self.conn_weights,
+            'output_indices': self.output_indices,
+        }
+
+    def update_weights_only(self, np.ndarray new_weights):
+        """
+        仅更新连接权重（用于快速参数传输）
+
+        Args:
+            new_weights: 新的权重数组，形状必须与 conn_weights 匹配
+        """
+        if len(new_weights) != len(self.conn_weights):
+            raise ValueError(f"权重数量不匹配: 期望 {len(self.conn_weights)}, 得到 {len(new_weights)}")
+        self.conn_weights = new_weights.astype(DTYPE, copy=False)
+
     cpdef np.ndarray activate(self, inputs):
         """
         前向传播（Python/Cython 混合接口）

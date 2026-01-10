@@ -393,43 +393,48 @@ def fast_speciate(
             'new_members': {sid: [gid, ...]},
         }
     """
-    # 所有 cdef 声明必须在函数开头
-    cdef double threshold
-    cdef list sorted_gids, all_genomes, sorted_sids, rep_genomes, rep_indices
-    cdef list unspeciated, unspec_gids, sid_list
-    cdef dict gid_to_idx, new_representatives, new_members, sid_to_rep_idx
-    cdef GenomeDataExtractor extractor, rep_extractor, rep_extractor2, unspec_extractor
-    cdef int idx, i, j, n_unspec, n_reps, next_sid, best_sid_idx, best_sid, gi
-    cdef double min_dist, dist, best_dist, d
-    cdef int min_gid, gid
-    cdef np.ndarray dist_matrix
-
     if len(population) == 0:
         return {'new_representatives': {}, 'new_members': {}}
 
-    threshold = getattr(species_set_config, 'compatibility_threshold', 3.0)
+    cdef double threshold = getattr(species_set_config, 'compatibility_threshold', 3.0)
 
     # 准备数据
-    sorted_gids = sorted(population.keys())
-    gid_to_idx = {gid: i for i, gid in enumerate(sorted_gids)}
-    all_genomes = [population[gid] for gid in sorted_gids]
+    cdef list sorted_gids = sorted(population.keys())
+    cdef dict gid_to_idx = {gid: i for i, gid in enumerate(sorted_gids)}
+    cdef list all_genomes = [population[gid] for gid in sorted_gids]
 
     # 提取数据到 C 数组
-    extractor = GenomeDataExtractor()
+    cdef GenomeDataExtractor extractor = GenomeDataExtractor()
     extractor.extract(all_genomes, genome_config)
 
     # 准备结果
-    new_representatives = {}
-    new_members = {}
-    unspeciated = list(sorted_gids)
+    cdef dict new_representatives = {}
+    cdef dict new_members = {}
+    cdef list unspeciated = list(sorted_gids)
 
     # Step 1: 为每个现有物种找新代表
-    sorted_sids = sorted(species.keys())
-    rep_genomes = []
-    rep_indices = []
-    sid_to_rep_idx = {}
+    cdef list sorted_sids = sorted(species.keys())
+    cdef list rep_genomes = []
+    cdef list rep_indices = []
+    cdef dict sid_to_rep_idx = {}
 
-    idx = 0
+    # 预声明 if 块内的变量（Cython 不允许在 if/else 块内声明 cdef 变量）
+    cdef GenomeDataExtractor rep_extractor
+    cdef GenomeDataExtractor rep_extractor2
+    cdef GenomeDataExtractor unspec_extractor
+    cdef GenomeDataExtractor rep_ext
+    cdef list unspec_indices
+    cdef list rep_idx_list
+    cdef list unspec_gids
+    cdef list sid_list
+    cdef int n_unspec, n_reps
+    cdef np.ndarray dist_matrix
+    cdef int i, j
+    cdef double best_dist, d, dist
+    cdef int best_sid_idx, best_sid
+    cdef int next_sid
+
+    cdef int idx = 0
     for sid in sorted_sids:
         s = species[sid]
         rep_genomes.append(s.representative)
@@ -438,20 +443,33 @@ def fast_speciate(
         idx += 1
 
     if rep_genomes:
-        # 为 representatives 也提取数据
+        # 为 representatives 也提取数据（添加到同一个 extractor 会更复杂，这里单独处理）
         rep_extractor = GenomeDataExtractor()
         rep_extractor.extract(rep_genomes, genome_config)
+
+        # 计算所有 unspeciated genomes 到所有 representatives 的距离
+        unspec_indices = [gid_to_idx[gid] for gid in unspeciated]
+        rep_idx_list = list(range(len(rep_genomes)))
 
         # 为每个 species 找最接近的 genome 作为新代表
         for sid_idx, sid in enumerate(sorted_sids):
             s = species[sid]
 
+            # 计算 unspeciated genomes 到这个 representative 的距离
             min_dist = float('inf')
             min_gid = -1
 
             for gid in unspeciated:
                 gi = gid_to_idx[gid]
-                dist = _compute_distance_py(extractor, gi, rep_extractor, sid_idx)
+                # 计算单个距离
+                g = population[gid]
+                rep = s.representative
+
+                # 使用 extractor 中的数据计算距离
+                dist = _compute_distance_py(
+                    extractor, gi,
+                    rep_extractor, sid_idx,
+                )
 
                 if dist < min_dist:
                     min_dist = dist
@@ -464,12 +482,14 @@ def fast_speciate(
 
     # Step 2: 将剩余 genome 分配到物种（使用并行距离计算）
     if unspeciated and new_representatives:
+        # 准备 representative 数据
         rep_gids = list(new_representatives.values())
         rep_genome_list = [population[gid] for gid in rep_gids]
 
         rep_extractor2 = GenomeDataExtractor()
         rep_extractor2.extract(rep_genome_list, genome_config)
 
+        # 批量计算距离
         unspec_gids = list(unspeciated)
         n_unspec = len(unspec_gids)
         n_reps = len(rep_gids)
@@ -480,13 +500,16 @@ def fast_speciate(
         unspec_extractor.extract(unspec_genomes, genome_config)
 
         # 并行计算距离矩阵
-        dist_matrix = _compute_distance_matrix_between(unspec_extractor, rep_extractor2, num_threads)
+        dist_matrix = _compute_distance_matrix_between(
+            unspec_extractor, rep_extractor2, num_threads
+        )
 
         # 分配 genome 到 species
         sid_list = list(new_representatives.keys())
 
         for i in range(n_unspec):
             gid = unspec_gids[i]
+
             best_dist = float('inf')
             best_sid_idx = -1
 
@@ -508,20 +531,33 @@ def fast_speciate(
                 new_members[next_sid] = [gid]
                 sid_list.append(next_sid)
 
+                # 更新 rep_extractor2（添加新的 representative）
+                # 简化处理：新物种直接加入，不重新计算距离矩阵
+
     # 处理没有现有物种的情况
     elif unspeciated and not new_representatives:
+        # 第一个 genome 成为第一个物种的代表
         gid = unspeciated.pop(0)
         new_representatives[1] = gid
         new_members[1] = [gid]
 
         if unspeciated:
+            # 简化处理：逐个分配剩余 genome
+            rep_gids = [population[new_representatives[1]]]
+            rep_ext = GenomeDataExtractor()
+            rep_ext.extract(rep_gids, genome_config)
+
             for gid in unspeciated:
                 g = population[gid]
+
+                # 计算到现有代表的距离
                 best_dist = float('inf')
                 best_sid = -1
 
                 for sid, rep_gid in new_representatives.items():
                     rep = population[rep_gid]
+
+                    # 简化：直接用 Python 计算
                     dist = _compute_distance_simple(g, rep, genome_config)
 
                     if dist < threshold and dist < best_dist:
