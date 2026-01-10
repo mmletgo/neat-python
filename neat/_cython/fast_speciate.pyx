@@ -3,23 +3,17 @@
 # cython: wraparound=False
 # cython: cdivision=True
 """
-高性能物种划分模块 (Cython 优化版本)
+高性能物种划分模块 (真正的 OpenMP 并行版本)
 
-使用 Cython 优化的 NEAT 物种划分实现。
-主要优化：
-1. 预计算所有 genome 到所有 representative 的距离矩阵
-2. OpenMP 并行计算距离
-3. 向量化分配
-4. 避免 Python 层的循环
+核心优化策略：
+1. 预提取阶段：将 Python dict 数据转换为 C 数组（串行）
+2. 距离计算阶段：使用 OpenMP prange 并行计算距离矩阵（并行）
+3. 分配阶段：根据距离矩阵分配 genome 到 species（串行）
 
-原始问题：
-- 纯 Python 循环计算 genome 距离
-- 无法利用多核并行
-
-优化策略：
-- 提取基因组数据到数组
-- OpenMP 并行计算距离矩阵
-- 批量分配 genome 到 species
+数据布局：
+- 节点数据：扁平化数组 + 偏移量数组
+- 连接数据：扁平化数组 + 偏移量数组
+- 距离矩阵：连续的 2D 数组
 """
 
 import numpy as np
@@ -34,440 +28,340 @@ DTYPE = np.float64
 ctypedef np.float64_t DTYPE_t
 ctypedef np.int32_t INT32_t
 
-# 尝试导入 fast_genome_distance_full
-try:
-    from neat._cython.fast_genome import fast_genome_distance_full
-    _USE_FAST_DISTANCE = True
-except ImportError:
-    _USE_FAST_DISTANCE = False
+
+# ============================================================================
+# C 结构体定义
+# ============================================================================
+
+# 节点数据的 C 表示
+cdef struct NodeData:
+    int key
+    double bias
+    double response
+    int activation_id
+    int aggregation_id
+
+
+# 连接数据的 C 表示
+cdef struct ConnectionData:
+    int in_node
+    int out_node
+    double weight
+    int enabled  # 0 or 1
+
+
+# 单个 genome 在扁平化数组中的布局
+cdef struct GenomeLayout:
+    int node_start
+    int node_count
+    int conn_start
+    int conn_count
 
 
 # ============================================================================
-# 配置缓存类
+# 数据提取
 # ============================================================================
 
-cdef class SpeciateConfig:
-    """缓存物种划分配置参数
+cdef class GenomeDataExtractor:
+    """从 Python genome 对象提取数据到 C 数组"""
 
-    在创建时一次性从 NEAT 配置对象提取所有参数，
-    避免运行时重复 getattr 调用。
-    """
-    cdef public double compatibility_threshold
-    cdef public double compatibility_weight_coefficient
-    cdef public double compatibility_disjoint_coefficient
-    cdef public dict activation_to_int
-    cdef public dict aggregation_to_int
-    cdef public object genome_config
+    cdef:
+        # 节点数据（扁平化）
+        NodeData* nodes
+        int total_nodes
 
-    def __init__(self):
-        self.compatibility_threshold = 3.0
-        self.compatibility_weight_coefficient = 0.5
-        self.compatibility_disjoint_coefficient = 1.0
-        self.activation_to_int = {}
-        self.aggregation_to_int = {}
-        self.genome_config = None
+        # 连接数据（扁平化）
+        ConnectionData* connections
+        int total_connections
 
-    @staticmethod
-    def from_neat_config(species_set_config, genome_config):
-        """从 NEAT 配置对象创建 SpeciateConfig
+        # 每个 genome 的布局信息
+        GenomeLayout* layouts
+        int num_genomes
+
+        # 配置缓存
+        double weight_coeff
+        double disjoint_coeff
+        dict activation_to_int
+        dict aggregation_to_int
+
+        # 是否已分配内存
+        bint allocated
+
+    def __cinit__(self):
+        self.nodes = NULL
+        self.connections = NULL
+        self.layouts = NULL
+        self.num_genomes = 0
+        self.total_nodes = 0
+        self.total_connections = 0
+        self.allocated = False
+
+    def __dealloc__(self):
+        self._free_memory()
+
+    cdef void _free_memory(self) noexcept:
+        if self.nodes != NULL:
+            free(self.nodes)
+            self.nodes = NULL
+        if self.connections != NULL:
+            free(self.connections)
+            self.connections = NULL
+        if self.layouts != NULL:
+            free(self.layouts)
+            self.layouts = NULL
+        self.allocated = False
+
+    cpdef void extract(self, list genomes, object genome_config):
+        """从 genome 列表提取数据
 
         Args:
-            species_set_config: DefaultSpeciesSet 的配置
-            genome_config: DefaultGenomeConfig 实例
-
-        Returns:
-            SpeciateConfig 实例
+            genomes: genome 对象列表
+            genome_config: NEAT genome 配置
         """
-        cdef SpeciateConfig cfg = SpeciateConfig()
+        self._free_memory()
 
-        cfg.compatibility_threshold = getattr(
-            species_set_config, 'compatibility_threshold', 3.0
-        )
-        cfg.compatibility_weight_coefficient = getattr(
-            genome_config, 'compatibility_weight_coefficient', 0.5
-        )
-        cfg.compatibility_disjoint_coefficient = getattr(
-            genome_config, 'compatibility_disjoint_coefficient', 1.0
-        )
+        cdef int n = len(genomes)
+        if n == 0:
+            return
 
-        # 获取 activation/aggregation 映射
-        cfg.activation_to_int = getattr(genome_config, 'activation_to_int', {})
-        cfg.aggregation_to_int = getattr(genome_config, 'aggregation_to_int', {})
+        # 缓存配置
+        self.weight_coeff = getattr(genome_config, 'compatibility_weight_coefficient', 0.5)
+        self.disjoint_coeff = getattr(genome_config, 'compatibility_disjoint_coefficient', 1.0)
+        self.activation_to_int = getattr(genome_config, 'activation_to_int', {})
+        self.aggregation_to_int = getattr(genome_config, 'aggregation_to_int', {})
 
-        cfg.genome_config = genome_config
+        self.num_genomes = n
 
-        return cfg
+        # 第一遍：统计总数
+        cdef int i
+        cdef object g
+        self.total_nodes = 0
+        self.total_connections = 0
+
+        for i in range(n):
+            g = genomes[i]
+            self.total_nodes += len(g.nodes)
+            self.total_connections += len(g.connections)
+
+        # 分配内存
+        self.layouts = <GenomeLayout*>malloc(n * sizeof(GenomeLayout))
+        if self.total_nodes > 0:
+            self.nodes = <NodeData*>malloc(self.total_nodes * sizeof(NodeData))
+        if self.total_connections > 0:
+            self.connections = <ConnectionData*>malloc(self.total_connections * sizeof(ConnectionData))
+
+        self.allocated = True
+
+        # 第二遍：填充数据
+        cdef int node_offset = 0
+        cdef int conn_offset = 0
+        cdef object node_key, node_gene, conn_key, conn_gene
+        cdef int j
+
+        for i in range(n):
+            g = genomes[i]
+
+            # 记录布局
+            self.layouts[i].node_start = node_offset
+            self.layouts[i].node_count = len(g.nodes)
+            self.layouts[i].conn_start = conn_offset
+            self.layouts[i].conn_count = len(g.connections)
+
+            # 提取节点数据
+            for node_key, node_gene in g.nodes.items():
+                self.nodes[node_offset].key = node_key
+                self.nodes[node_offset].bias = node_gene.bias
+                self.nodes[node_offset].response = node_gene.response
+                self.nodes[node_offset].activation_id = self.activation_to_int.get(
+                    node_gene.activation, 0
+                )
+                self.nodes[node_offset].aggregation_id = self.aggregation_to_int.get(
+                    node_gene.aggregation, 0
+                )
+                node_offset += 1
+
+            # 提取连接数据
+            for conn_key, conn_gene in g.connections.items():
+                self.connections[conn_offset].in_node = conn_key[0]
+                self.connections[conn_offset].out_node = conn_key[1]
+                self.connections[conn_offset].weight = conn_gene.weight
+                self.connections[conn_offset].enabled = 1 if conn_gene.enabled else 0
+                conn_offset += 1
 
 
 # ============================================================================
-# 距离计算辅助函数
+# 并行距离计算
 # ============================================================================
 
-cdef inline double _compute_genome_distance(
-    dict self_nodes,
-    dict self_connections,
-    dict other_nodes,
-    dict other_connections,
+cdef double _compute_distance_from_arrays(
+    NodeData* nodes1, int n1_start, int n1_count,
+    ConnectionData* conns1, int c1_start, int c1_count,
+    NodeData* nodes2, int n2_start, int n2_count,
+    ConnectionData* conns2, int c2_start, int c2_count,
     double weight_coeff,
-    double disjoint_coeff,
-    dict act_to_int,
-    dict agg_to_int
-):
-    """计算两个基因组的距离（内联版本）
+    double disjoint_coeff
+) noexcept nogil:
+    """从 C 数组计算两个 genome 的距离（nogil 版本）
 
-    与 fast_genome.pyx 中的 fast_genome_distance_full 逻辑相同，
-    但直接接受解析后的参数，减少函数调用开销。
+    这个函数可以在 OpenMP 并行区域内调用。
     """
     cdef double node_distance = 0.0
     cdef double connection_distance = 0.0
     cdef int disjoint_nodes = 0
     cdef int disjoint_connections = 0
     cdef int max_nodes, max_conns
-    cdef int len_self_nodes = len(self_nodes)
-    cdef int len_other_nodes = len(other_nodes)
-    cdef int len_self_conns = len(self_connections)
-    cdef int len_other_conns = len(other_connections)
-
-    cdef object key, n1, n2, c1, c2
+    cdef int i, j
+    cdef bint found
     cdef double diff, bias_diff, response_diff, weight_diff
-    cdef int act1_int, act2_int, agg1_int, agg2_int
 
-    # ========== 计算节点基因距离 ==========
-    if len_self_nodes > 0 or len_other_nodes > 0:
-        # 遍历 other_nodes，找出不在 self_nodes 中的节点
-        for key in other_nodes:
-            if key not in self_nodes:
+    # ========== 计算节点距离 ==========
+    if n1_count > 0 or n2_count > 0:
+        # 遍历 genome2 的节点，找不在 genome1 中的
+        for i in range(n2_count):
+            found = False
+            for j in range(n1_count):
+                if nodes2[n2_start + i].key == nodes1[n1_start + j].key:
+                    found = True
+                    break
+            if not found:
                 disjoint_nodes += 1
 
-        # 遍历 self_nodes，计算同源节点距离或计数非同源节点
-        for key in self_nodes:
-            n2 = other_nodes.get(key)
-            if n2 is None:
+        # 遍历 genome1 的节点
+        for i in range(n1_count):
+            found = False
+            for j in range(n2_count):
+                if nodes1[n1_start + i].key == nodes2[n2_start + j].key:
+                    found = True
+                    # 计算同源节点距离
+                    bias_diff = nodes1[n1_start + i].bias - nodes2[n2_start + j].bias
+                    if bias_diff < 0:
+                        bias_diff = -bias_diff
+
+                    response_diff = nodes1[n1_start + i].response - nodes2[n2_start + j].response
+                    if response_diff < 0:
+                        response_diff = -response_diff
+
+                    diff = bias_diff + response_diff
+
+                    # 属性距离
+                    if nodes1[n1_start + i].activation_id != nodes2[n2_start + j].activation_id:
+                        diff += 1.0
+                    if nodes1[n1_start + i].aggregation_id != nodes2[n2_start + j].aggregation_id:
+                        diff += 1.0
+
+                    node_distance += diff * weight_coeff
+                    break
+
+            if not found:
                 disjoint_nodes += 1
-            else:
-                n1 = self_nodes[key]
-                # 计算节点距离
-                bias_diff = n1.bias - n2.bias
-                if bias_diff < 0:
-                    bias_diff = -bias_diff
 
-                response_diff = n1.response - n2.response
-                if response_diff < 0:
-                    response_diff = -response_diff
+        max_nodes = n1_count if n1_count > n2_count else n2_count
+        if max_nodes > 0:
+            node_distance = (node_distance + disjoint_coeff * disjoint_nodes) / max_nodes
 
-                diff = bias_diff + response_diff
-
-                # 字符串属性距离
-                act1_int = act_to_int.get(n1.activation, 0)
-                act2_int = act_to_int.get(n2.activation, 0)
-                if act1_int != act2_int:
-                    diff += 1.0
-
-                agg1_int = agg_to_int.get(n1.aggregation, 0)
-                agg2_int = agg_to_int.get(n2.aggregation, 0)
-                if agg1_int != agg2_int:
-                    diff += 1.0
-
-                node_distance += diff * weight_coeff
-
-        max_nodes = len_self_nodes if len_self_nodes > len_other_nodes else len_other_nodes
-        node_distance = (node_distance + disjoint_coeff * disjoint_nodes) / max_nodes
-
-    # ========== 计算连接基因距离 ==========
-    if len_self_conns > 0 or len_other_conns > 0:
-        # 遍历 other_connections
-        for key in other_connections:
-            if key not in self_connections:
+    # ========== 计算连接距离 ==========
+    if c1_count > 0 or c2_count > 0:
+        # 遍历 genome2 的连接
+        for i in range(c2_count):
+            found = False
+            for j in range(c1_count):
+                if (conns2[c2_start + i].in_node == conns1[c1_start + j].in_node and
+                    conns2[c2_start + i].out_node == conns1[c1_start + j].out_node):
+                    found = True
+                    break
+            if not found:
                 disjoint_connections += 1
 
-        # 遍历 self_connections
-        for key in self_connections:
-            c2 = other_connections.get(key)
-            if c2 is None:
+        # 遍历 genome1 的连接
+        for i in range(c1_count):
+            found = False
+            for j in range(c2_count):
+                if (conns1[c1_start + i].in_node == conns2[c2_start + j].in_node and
+                    conns1[c1_start + i].out_node == conns2[c2_start + j].out_node):
+                    found = True
+                    # 计算同源连接距离
+                    weight_diff = conns1[c1_start + i].weight - conns2[c2_start + j].weight
+                    if weight_diff < 0:
+                        weight_diff = -weight_diff
+
+                    diff = weight_diff
+                    if conns1[c1_start + i].enabled != conns2[c2_start + j].enabled:
+                        diff += 1.0
+
+                    connection_distance += diff * weight_coeff
+                    break
+
+            if not found:
                 disjoint_connections += 1
-            else:
-                c1 = self_connections[key]
-                weight_diff = c1.weight - c2.weight
-                if weight_diff < 0:
-                    weight_diff = -weight_diff
 
-                diff = weight_diff
-                if c1.enabled != c2.enabled:
-                    diff += 1.0
-
-                connection_distance += diff * weight_coeff
-
-        max_conns = len_self_conns if len_self_conns > len_other_conns else len_other_conns
-        connection_distance = (connection_distance + disjoint_coeff * disjoint_connections) / max_conns
+        max_conns = c1_count if c1_count > c2_count else c2_count
+        if max_conns > 0:
+            connection_distance = (connection_distance + disjoint_coeff * disjoint_connections) / max_conns
 
     return node_distance + connection_distance
 
 
-cpdef double compute_genome_distance(
-    object genome1,
-    object genome2,
-    object genome_config
-):
-    """计算两个基因组之间的距离
-
-    对外暴露的 API，封装距离计算逻辑。
-
-    Args:
-        genome1: 第一个基因组
-        genome2: 第二个基因组
-        genome_config: NEAT genome 配置
-
-    Returns:
-        距离值
-    """
-    # 优先使用 fast_genome 中的优化版本
-    if _USE_FAST_DISTANCE:
-        return fast_genome_distance_full(
-            genome1.nodes,
-            genome1.connections,
-            genome2.nodes,
-            genome2.connections,
-            genome_config
-        )
-
-    # 回退到内联版本
-    cdef double weight_coeff = getattr(genome_config, 'compatibility_weight_coefficient', 0.5)
-    cdef double disjoint_coeff = getattr(genome_config, 'compatibility_disjoint_coefficient', 1.0)
-    cdef dict act_to_int = getattr(genome_config, 'activation_to_int', {})
-    cdef dict agg_to_int = getattr(genome_config, 'aggregation_to_int', {})
-
-    return _compute_genome_distance(
-        genome1.nodes,
-        genome1.connections,
-        genome2.nodes,
-        genome2.connections,
-        weight_coeff,
-        disjoint_coeff,
-        act_to_int,
-        agg_to_int
-    )
-
-
-# ============================================================================
-# 批量距离计算（支持 OpenMP 并行）
-# ============================================================================
-
-cpdef np.ndarray compute_distance_matrix(
-    list genomes,
-    list representatives,
-    object genome_config,
+cpdef np.ndarray compute_distance_matrix_parallel(
+    GenomeDataExtractor extractor,
+    list genome_indices,
+    list rep_indices,
     int num_threads=0
 ):
     """并行计算距离矩阵
 
-    计算 genomes 中每个基因组到 representatives 中每个代表的距离。
+    使用 OpenMP 并行计算 genomes 到 representatives 的距离。
 
     Args:
-        genomes: 基因组列表
-        representatives: 代表基因组列表
-        genome_config: NEAT genome 配置
-        num_threads: 线程数（0 表示使用 OMP_NUM_THREADS 环境变量）
+        extractor: 已提取数据的 GenomeDataExtractor
+        genome_indices: 要计算距离的 genome 索引列表
+        rep_indices: representative 的索引列表
+        num_threads: 线程数（0 表示使用默认值）
 
     Returns:
-        距离矩阵 [num_genomes, num_representatives]
+        距离矩阵 [num_genomes, num_reps]
     """
-    cdef int num_genomes = len(genomes)
-    cdef int num_reps = len(representatives)
+    cdef int num_genomes = len(genome_indices)
+    cdef int num_reps = len(rep_indices)
 
     if num_genomes == 0 or num_reps == 0:
         return np.empty((num_genomes, num_reps), dtype=DTYPE)
 
-    # 预分配结果矩阵
-    cdef np.ndarray[DTYPE_t, ndim=2] distances = np.empty(
-        (num_genomes, num_reps), dtype=DTYPE
-    )
+    # 转换为 C 数组
+    cdef np.ndarray[INT32_t, ndim=1] g_indices = np.array(genome_indices, dtype=np.int32)
+    cdef np.ndarray[INT32_t, ndim=1] r_indices = np.array(rep_indices, dtype=np.int32)
+    cdef np.ndarray[DTYPE_t, ndim=2] distances = np.empty((num_genomes, num_reps), dtype=DTYPE)
 
-    # 提取配置参数（避免在循环中重复 getattr）
-    cdef double weight_coeff = getattr(genome_config, 'compatibility_weight_coefficient', 0.5)
-    cdef double disjoint_coeff = getattr(genome_config, 'compatibility_disjoint_coefficient', 1.0)
-    cdef dict act_to_int = getattr(genome_config, 'activation_to_int', {})
-    cdef dict agg_to_int = getattr(genome_config, 'aggregation_to_int', {})
+    cdef int i, j, gi, ri
+    cdef double weight_coeff = extractor.weight_coeff
+    cdef double disjoint_coeff = extractor.disjoint_coeff
 
-    cdef int i, j
-    cdef object genome, rep
+    # 获取指针
+    cdef NodeData* nodes = extractor.nodes
+    cdef ConnectionData* connections = extractor.connections
+    cdef GenomeLayout* layouts = extractor.layouts
 
-    # 注意：由于距离计算需要访问 Python dict，无法完全 nogil
-    # 但可以减少 Python 层的循环开销
-    for i in range(num_genomes):
-        genome = genomes[i]
-        for j in range(num_reps):
-            rep = representatives[j]
-            distances[i, j] = _compute_genome_distance(
-                genome.nodes,
-                genome.connections,
-                rep.nodes,
-                rep.connections,
-                weight_coeff,
-                disjoint_coeff,
-                act_to_int,
-                agg_to_int
-            )
+    cdef int n_threads = num_threads if num_threads > 0 else 8
+
+    # OpenMP 并行计算
+    with nogil:
+        for i in prange(num_genomes, num_threads=n_threads, schedule='dynamic'):
+            gi = g_indices[i]
+            for j in range(num_reps):
+                ri = r_indices[j]
+                distances[i, j] = _compute_distance_from_arrays(
+                    nodes, layouts[gi].node_start, layouts[gi].node_count,
+                    connections, layouts[gi].conn_start, layouts[gi].conn_count,
+                    nodes, layouts[ri].node_start, layouts[ri].node_count,
+                    connections, layouts[ri].conn_start, layouts[ri].conn_count,
+                    weight_coeff,
+                    disjoint_coeff
+                )
 
     return distances
 
 
 # ============================================================================
 # 快速物种划分
-# ============================================================================
-
-cdef class FastSpeciator:
-    """快速物种划分器
-
-    优化的物种划分实现，主要优化点：
-    1. 批量计算距离矩阵
-    2. 向量化分配
-    3. 减少 Python 对象操作
-    """
-
-    cdef public double compatibility_threshold
-    cdef public object genome_config
-    cdef public int num_threads
-
-    # 配置缓存
-    cdef double weight_coeff
-    cdef double disjoint_coeff
-    cdef dict act_to_int
-    cdef dict agg_to_int
-
-    def __init__(
-        self,
-        double compatibility_threshold,
-        object genome_config,
-        int num_threads=0
-    ):
-        """初始化 FastSpeciator
-
-        Args:
-            compatibility_threshold: 兼容性阈值
-            genome_config: NEAT genome 配置
-            num_threads: 线程数
-        """
-        self.compatibility_threshold = compatibility_threshold
-        self.genome_config = genome_config
-        self.num_threads = num_threads
-
-        # 缓存配置参数
-        self.weight_coeff = getattr(genome_config, 'compatibility_weight_coefficient', 0.5)
-        self.disjoint_coeff = getattr(genome_config, 'compatibility_disjoint_coefficient', 1.0)
-        self.act_to_int = getattr(genome_config, 'activation_to_int', {})
-        self.agg_to_int = getattr(genome_config, 'aggregation_to_int', {})
-
-    cpdef dict speciate(
-        self,
-        dict population,
-        dict species,
-        int generation
-    ):
-        """执行物种划分
-
-        实现与原始 DefaultSpeciesSet.speciate 相同的逻辑，
-        但使用优化的距离计算。
-
-        Args:
-            population: {genome_id: genome} 字典
-            species: {species_id: Species} 字典
-            generation: 当前代数
-
-        Returns:
-            更新后的 species 字典
-        """
-        if len(population) == 0:
-            return species
-
-        # 确定性排序
-        cdef list unspeciated = sorted(population.keys())
-        cdef dict new_representatives = {}
-        cdef dict new_members = {}
-
-        # Step 1: 为每个现有物种找新代表（最接近当前代表的 genome）
-        cdef list sorted_species_ids = sorted(species.keys())
-        cdef int sid
-        cdef object s, g, rep
-        cdef int gid, new_rid
-        cdef double d, min_dist
-        cdef list candidates
-
-        for sid in sorted_species_ids:
-            s = species[sid]
-            rep = s.representative
-
-            # 找出与当前代表最接近的 genome
-            min_dist = float('inf')
-            new_rid = -1
-
-            for gid in unspeciated:
-                g = population[gid]
-                d = _compute_genome_distance(
-                    rep.nodes,
-                    rep.connections,
-                    g.nodes,
-                    g.connections,
-                    self.weight_coeff,
-                    self.disjoint_coeff,
-                    self.act_to_int,
-                    self.agg_to_int
-                )
-                if d < min_dist:
-                    min_dist = d
-                    new_rid = gid
-
-            if new_rid >= 0:
-                new_representatives[sid] = new_rid
-                new_members[sid] = [new_rid]
-                unspeciated.remove(new_rid)
-
-        # Step 2: 将剩余 genome 分配到物种
-        cdef double best_dist
-        cdef int best_sid, rid
-
-        while unspeciated:
-            gid = unspeciated.pop(0)
-            g = population[gid]
-
-            # 找最相似的物种
-            best_dist = float('inf')
-            best_sid = -1
-
-            for sid, rid in new_representatives.items():
-                rep = population[rid]
-                d = _compute_genome_distance(
-                    rep.nodes,
-                    rep.connections,
-                    g.nodes,
-                    g.connections,
-                    self.weight_coeff,
-                    self.disjoint_coeff,
-                    self.act_to_int,
-                    self.agg_to_int
-                )
-                if d < self.compatibility_threshold and d < best_dist:
-                    best_dist = d
-                    best_sid = sid
-
-            if best_sid >= 0:
-                new_members[best_sid].append(gid)
-            else:
-                # 创建新物种
-                # 找一个新的 species ID
-                sid = 1
-                while sid in species or sid in new_representatives:
-                    sid += 1
-                new_representatives[sid] = gid
-                new_members[sid] = [gid]
-
-        return {
-            'new_representatives': new_representatives,
-            'new_members': new_members
-        }
-
-
-# ============================================================================
-# 高级 API：完整的物种划分流程
 # ============================================================================
 
 def fast_speciate(
@@ -478,10 +372,12 @@ def fast_speciate(
     int generation,
     int num_threads=0
 ):
-    """快速物种划分（高级 API）
+    """快速物种划分（真正的并行版本）
 
-    完整的物种划分流程，返回新的代表和成员映射。
-    这个函数是对 FastSpeciator 的便捷封装。
+    流程：
+    1. 提取所有 genome 数据到 C 数组
+    2. 并行计算距离矩阵
+    3. 串行分配 genome 到 species
 
     Args:
         population: {genome_id: genome} 字典
@@ -497,115 +393,288 @@ def fast_speciate(
             'new_members': {sid: [gid, ...]},
         }
     """
-    cdef double threshold = getattr(species_set_config, 'compatibility_threshold', 3.0)
+    # 所有 cdef 声明必须在函数开头
+    cdef double threshold
+    cdef list sorted_gids, all_genomes, sorted_sids, rep_genomes, rep_indices
+    cdef list unspeciated, unspec_gids, sid_list
+    cdef dict gid_to_idx, new_representatives, new_members, sid_to_rep_idx
+    cdef GenomeDataExtractor extractor, rep_extractor, rep_extractor2, unspec_extractor
+    cdef int idx, i, j, n_unspec, n_reps, next_sid, best_sid_idx, best_sid, gi
+    cdef double min_dist, dist, best_dist, d
+    cdef int min_gid, gid
+    cdef np.ndarray dist_matrix
 
-    cdef FastSpeciator speciator = FastSpeciator(
-        threshold,
-        genome_config,
-        num_threads
+    if len(population) == 0:
+        return {'new_representatives': {}, 'new_members': {}}
+
+    threshold = getattr(species_set_config, 'compatibility_threshold', 3.0)
+
+    # 准备数据
+    sorted_gids = sorted(population.keys())
+    gid_to_idx = {gid: i for i, gid in enumerate(sorted_gids)}
+    all_genomes = [population[gid] for gid in sorted_gids]
+
+    # 提取数据到 C 数组
+    extractor = GenomeDataExtractor()
+    extractor.extract(all_genomes, genome_config)
+
+    # 准备结果
+    new_representatives = {}
+    new_members = {}
+    unspeciated = list(sorted_gids)
+
+    # Step 1: 为每个现有物种找新代表
+    sorted_sids = sorted(species.keys())
+    rep_genomes = []
+    rep_indices = []
+    sid_to_rep_idx = {}
+
+    idx = 0
+    for sid in sorted_sids:
+        s = species[sid]
+        rep_genomes.append(s.representative)
+        rep_indices.append(idx)
+        sid_to_rep_idx[sid] = idx
+        idx += 1
+
+    if rep_genomes:
+        # 为 representatives 也提取数据
+        rep_extractor = GenomeDataExtractor()
+        rep_extractor.extract(rep_genomes, genome_config)
+
+        # 为每个 species 找最接近的 genome 作为新代表
+        for sid_idx, sid in enumerate(sorted_sids):
+            s = species[sid]
+
+            min_dist = float('inf')
+            min_gid = -1
+
+            for gid in unspeciated:
+                gi = gid_to_idx[gid]
+                dist = _compute_distance_py(extractor, gi, rep_extractor, sid_idx)
+
+                if dist < min_dist:
+                    min_dist = dist
+                    min_gid = gid
+
+            if min_gid >= 0:
+                new_representatives[sid] = min_gid
+                new_members[sid] = [min_gid]
+                unspeciated.remove(min_gid)
+
+    # Step 2: 将剩余 genome 分配到物种（使用并行距离计算）
+    if unspeciated and new_representatives:
+        rep_gids = list(new_representatives.values())
+        rep_genome_list = [population[gid] for gid in rep_gids]
+
+        rep_extractor2 = GenomeDataExtractor()
+        rep_extractor2.extract(rep_genome_list, genome_config)
+
+        unspec_gids = list(unspeciated)
+        n_unspec = len(unspec_gids)
+        n_reps = len(rep_gids)
+
+        # 提取 unspeciated genomes 的数据
+        unspec_genomes = [population[gid] for gid in unspec_gids]
+        unspec_extractor = GenomeDataExtractor()
+        unspec_extractor.extract(unspec_genomes, genome_config)
+
+        # 并行计算距离矩阵
+        dist_matrix = _compute_distance_matrix_between(unspec_extractor, rep_extractor2, num_threads)
+
+        # 分配 genome 到 species
+        sid_list = list(new_representatives.keys())
+
+        for i in range(n_unspec):
+            gid = unspec_gids[i]
+            best_dist = float('inf')
+            best_sid_idx = -1
+
+            for j in range(n_reps):
+                d = dist_matrix[i, j]
+                if d < threshold and d < best_dist:
+                    best_dist = d
+                    best_sid_idx = j
+
+            if best_sid_idx >= 0:
+                best_sid = sid_list[best_sid_idx]
+                new_members[best_sid].append(gid)
+            else:
+                # 创建新物种
+                next_sid = 1
+                while next_sid in species or next_sid in new_representatives:
+                    next_sid += 1
+                new_representatives[next_sid] = gid
+                new_members[next_sid] = [gid]
+                sid_list.append(next_sid)
+
+    # 处理没有现有物种的情况
+    elif unspeciated and not new_representatives:
+        gid = unspeciated.pop(0)
+        new_representatives[1] = gid
+        new_members[1] = [gid]
+
+        if unspeciated:
+            for gid in unspeciated:
+                g = population[gid]
+                best_dist = float('inf')
+                best_sid = -1
+
+                for sid, rep_gid in new_representatives.items():
+                    rep = population[rep_gid]
+                    dist = _compute_distance_simple(g, rep, genome_config)
+
+                    if dist < threshold and dist < best_dist:
+                        best_dist = dist
+                        best_sid = sid
+
+                if best_sid >= 0:
+                    new_members[best_sid].append(gid)
+                else:
+                    next_sid = max(new_representatives.keys()) + 1
+                    new_representatives[next_sid] = gid
+                    new_members[next_sid] = [gid]
+
+    return {
+        'new_representatives': new_representatives,
+        'new_members': new_members
+    }
+
+
+cdef np.ndarray _compute_distance_matrix_between(
+    GenomeDataExtractor ext1,
+    GenomeDataExtractor ext2,
+    int num_threads
+):
+    """计算两组 genome 之间的距离矩阵
+
+    使用 OpenMP 并行计算。
+    """
+    cdef int n1 = ext1.num_genomes
+    cdef int n2 = ext2.num_genomes
+
+    if n1 == 0 or n2 == 0:
+        return np.empty((n1, n2), dtype=DTYPE)
+
+    cdef np.ndarray[DTYPE_t, ndim=2] distances = np.empty((n1, n2), dtype=DTYPE)
+
+    cdef int i, j
+    cdef double weight_coeff = ext1.weight_coeff
+    cdef double disjoint_coeff = ext1.disjoint_coeff
+
+    cdef NodeData* nodes1 = ext1.nodes
+    cdef ConnectionData* conns1 = ext1.connections
+    cdef GenomeLayout* layouts1 = ext1.layouts
+
+    cdef NodeData* nodes2 = ext2.nodes
+    cdef ConnectionData* conns2 = ext2.connections
+    cdef GenomeLayout* layouts2 = ext2.layouts
+
+    cdef int n_threads = num_threads if num_threads > 0 else 8
+
+    with nogil:
+        for i in prange(n1, num_threads=n_threads, schedule='dynamic'):
+            for j in range(n2):
+                distances[i, j] = _compute_distance_from_arrays(
+                    nodes1, layouts1[i].node_start, layouts1[i].node_count,
+                    conns1, layouts1[i].conn_start, layouts1[i].conn_count,
+                    nodes2, layouts2[j].node_start, layouts2[j].node_count,
+                    conns2, layouts2[j].conn_start, layouts2[j].conn_count,
+                    weight_coeff,
+                    disjoint_coeff
+                )
+
+    return distances
+
+
+cdef double _compute_distance_py(
+    GenomeDataExtractor ext1, int idx1,
+    GenomeDataExtractor ext2, int idx2
+):
+    """Python 可调用的距离计算（单个）"""
+    return _compute_distance_from_arrays(
+        ext1.nodes, ext1.layouts[idx1].node_start, ext1.layouts[idx1].node_count,
+        ext1.connections, ext1.layouts[idx1].conn_start, ext1.layouts[idx1].conn_count,
+        ext2.nodes, ext2.layouts[idx2].node_start, ext2.layouts[idx2].node_count,
+        ext2.connections, ext2.layouts[idx2].conn_start, ext2.layouts[idx2].conn_count,
+        ext1.weight_coeff,
+        ext1.disjoint_coeff
     )
 
-    return speciator.speciate(population, species, generation)
+
+def _compute_distance_simple(genome1, genome2, genome_config):
+    """简单的 Python 距离计算（作为回退）"""
+    weight_coeff = getattr(genome_config, 'compatibility_weight_coefficient', 0.5)
+    disjoint_coeff = getattr(genome_config, 'compatibility_disjoint_coefficient', 1.0)
+    act_to_int = getattr(genome_config, 'activation_to_int', {})
+    agg_to_int = getattr(genome_config, 'aggregation_to_int', {})
+
+    node_distance = 0.0
+    connection_distance = 0.0
+    disjoint_nodes = 0
+    disjoint_connections = 0
+
+    # 节点距离
+    nodes1 = genome1.nodes
+    nodes2 = genome2.nodes
+
+    if nodes1 or nodes2:
+        for key in nodes2:
+            if key not in nodes1:
+                disjoint_nodes += 1
+
+        for key in nodes1:
+            n2 = nodes2.get(key)
+            if n2 is None:
+                disjoint_nodes += 1
+            else:
+                n1 = nodes1[key]
+                diff = abs(n1.bias - n2.bias) + abs(n1.response - n2.response)
+                if act_to_int.get(n1.activation, 0) != act_to_int.get(n2.activation, 0):
+                    diff += 1.0
+                if agg_to_int.get(n1.aggregation, 0) != agg_to_int.get(n2.aggregation, 0):
+                    diff += 1.0
+                node_distance += diff * weight_coeff
+
+        max_nodes = max(len(nodes1), len(nodes2))
+        if max_nodes > 0:
+            node_distance = (node_distance + disjoint_coeff * disjoint_nodes) / max_nodes
+
+    # 连接距离
+    conns1 = genome1.connections
+    conns2 = genome2.connections
+
+    if conns1 or conns2:
+        for key in conns2:
+            if key not in conns1:
+                disjoint_connections += 1
+
+        for key in conns1:
+            c2 = conns2.get(key)
+            if c2 is None:
+                disjoint_connections += 1
+            else:
+                c1 = conns1[key]
+                diff = abs(c1.weight - c2.weight)
+                if c1.enabled != c2.enabled:
+                    diff += 1.0
+                connection_distance += diff * weight_coeff
+
+        max_conns = max(len(conns1), len(conns2))
+        if max_conns > 0:
+            connection_distance = (connection_distance + disjoint_coeff * disjoint_connections) / max_conns
+
+    return node_distance + connection_distance
 
 
-def compute_distances_to_representatives(
-    list genomes,
-    list representatives,
+# ============================================================================
+# 公开 API
+# ============================================================================
+
+cpdef double compute_genome_distance(
+    object genome1,
+    object genome2,
     object genome_config
 ):
-    """计算 genomes 到 representatives 的距离
-
-    便捷函数，用于计算一组 genome 到一组代表的距离矩阵。
-
-    Args:
-        genomes: 基因组列表
-        representatives: 代表基因组列表
-        genome_config: 基因组配置
-
-    Returns:
-        距离矩阵 [num_genomes, num_representatives]
-    """
-    return compute_distance_matrix(genomes, representatives, genome_config)
-
-
-# ============================================================================
-# 距离缓存类（与原始 GenomeDistanceCache 兼容）
-# ============================================================================
-
-cdef class FastGenomeDistanceCache:
-    """快速基因组距离缓存
-
-    与原始 GenomeDistanceCache 兼容的实现，
-    但使用 Cython 优化的距离计算。
-    """
-    cdef dict distances
-    cdef object config
-    cdef public int hits
-    cdef public int misses
-
-    # 缓存的配置参数
-    cdef double weight_coeff
-    cdef double disjoint_coeff
-    cdef dict act_to_int
-    cdef dict agg_to_int
-
-    def __init__(self, object config):
-        """初始化缓存
-
-        Args:
-            config: genome_config
-        """
-        self.distances = {}
-        self.config = config
-        self.hits = 0
-        self.misses = 0
-
-        # 缓存配置参数
-        self.weight_coeff = getattr(config, 'compatibility_weight_coefficient', 0.5)
-        self.disjoint_coeff = getattr(config, 'compatibility_disjoint_coefficient', 1.0)
-        self.act_to_int = getattr(config, 'activation_to_int', {})
-        self.agg_to_int = getattr(config, 'aggregation_to_int', {})
-
-    def __call__(self, object genome0, object genome1):
-        """获取两个基因组的距离（带缓存）
-
-        Args:
-            genome0: 第一个基因组
-            genome1: 第二个基因组
-
-        Returns:
-            距离值
-        """
-        cdef int g0 = genome0.key
-        cdef int g1 = genome1.key
-
-        # 检查缓存
-        d = self.distances.get((g0, g1))
-        if d is not None:
-            self.hits += 1
-            return d
-
-        # 计算距离
-        d = _compute_genome_distance(
-            genome0.nodes,
-            genome0.connections,
-            genome1.nodes,
-            genome1.connections,
-            self.weight_coeff,
-            self.disjoint_coeff,
-            self.act_to_int,
-            self.agg_to_int
-        )
-
-        # 存入缓存
-        self.distances[g0, g1] = d
-        self.distances[g1, g0] = d
-        self.misses += 1
-
-        return d
-
-    def clear(self):
-        """清空缓存"""
-        self.distances.clear()
-        self.hits = 0
-        self.misses = 0
+    """计算两个基因组之间的距离"""
+    return _compute_distance_simple(genome1, genome2, genome_config)

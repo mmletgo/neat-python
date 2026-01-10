@@ -595,12 +595,7 @@ cpdef dict reproduce_fast(
         if spawn <= 0:
             continue
 
-        # 保留 species
-        old_members = list(s.members.items())
-        s.members = {}
-        species_set.species[s.key] = s
-
-        # 繁殖该 species
+        # 先繁殖（需要读取 s.members）
         species_offspring = reproduce_species_fast(
             s,
             spawn,
@@ -613,8 +608,9 @@ cpdef dict reproduce_fast(
         )
         new_population.update(species_offspring)
 
-        # 恢复 old_members 以便后续的 species 更新
-        s.members = dict(old_members)
+        # 繁殖完成后，清空并更新 species
+        s.members = {}
+        species_set.species[s.key] = s
 
     return new_population
 

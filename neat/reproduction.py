@@ -11,6 +11,15 @@ from neat.config import ConfigParameter, DefaultClassConfig
 from neat.innovation import InnovationTracker
 from neat.math_util import mean
 
+# 尝试导入 Cython 优化的 reproduce_fast 函数
+# 注意：当前实现由于 Python 对象操作开销，性能反而更差
+# 暂时禁用，等待进一步优化
+try:
+    from neat._cython.fast_reproduction import reproduce_fast
+    _USE_FAST_REPRODUCTION = False  # 暂时禁用
+except ImportError:
+    _USE_FAST_REPRODUCTION = False
+
 
 # TODO: Provide some sort of optional cross-species performance criteria, which
 # are then used to control stagnation and possibly the mutation rate
@@ -158,17 +167,35 @@ class DefaultReproduction(DefaultClassConfig):
         """
         Handles creation of genomes, either from scratch or by sexual or
         asexual reproduction from parents.
-        
+
         Implements innovation tracking per NEAT paper (Stanley & Miikkulainen, 2002):
         The innovation tracker is reset at the start of each generation to enable
         same-generation deduplication while preserving the global innovation counter.
+
+        优先使用 Cython 优化的 reproduce_fast() 函数，如果不可用则回退到纯 Python 实现。
+        """
+        # 尝试使用 Cython 优化的 reproduce_fast
+        if _USE_FAST_REPRODUCTION:
+            try:
+                return reproduce_fast(self, config, species, pop_size, generation)
+            except Exception:
+                # 如果 Cython 版本失败，回退到纯 Python 实现
+                pass
+
+        # 纯 Python 实现（回退路径）
+        return self._reproduce_python(config, species, pop_size, generation)
+
+    def _reproduce_python(self, config, species, pop_size, generation):
+        """
+        纯 Python 实现的 reproduce 方法。
+        当 Cython 优化版本不可用时作为回退使用。
         """
         # Set innovation tracker for this generation and reset generation-specific tracking
         # This enables same-generation deduplication: if multiple genomes make the same
         # structural mutation this generation, they get the same innovation number
         config.genome_config.innovation_tracker = self.innovation_tracker
         self.innovation_tracker.reset_generation()
-        
+
         # TODO: I don't like this modification of the species and stagnation objects,
         # because it requires internal knowledge of the objects.
 

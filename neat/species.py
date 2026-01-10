@@ -4,6 +4,15 @@ from itertools import count
 from neat.config import ConfigParameter, DefaultClassConfig
 from neat.math_util import mean, stdev
 
+# Cython 优化的物种划分
+# 注意：当前并行实现由于数据提取和 O(n²) 键查找开销，
+# 对于 NEAT 的典型种群规模反而更慢，暂时禁用
+try:
+    from neat._cython.fast_speciate import fast_speciate
+    _USE_FAST_SPECIATE = False  # 性能不佳，暂时禁用
+except ImportError:
+    _USE_FAST_SPECIATE = False
+
 
 class Species:
     def __init__(self, key, generation):
@@ -76,6 +85,68 @@ class DefaultSpeciesSet(DefaultClassConfig):
         """
         assert isinstance(population, dict)
 
+        # 尝试使用 Cython 优化的物种划分
+        if _USE_FAST_SPECIATE:
+            try:
+                result = fast_speciate(
+                    population,
+                    self.species,
+                    self.species_set_config,
+                    config.genome_config,
+                    generation
+                )
+                new_representatives = result['new_representatives']
+                new_members = result['new_members']
+
+                # 更新 indexer 确保新物种 ID 不冲突
+                if new_representatives:
+                    max_sid = max(new_representatives.keys())
+                    # 跳过 indexer 直到超过 max_sid
+                    while True:
+                        next_val = next(self.indexer)
+                        if next_val > max_sid:
+                            # 回退一步（通过重新创建 indexer）
+                            self.indexer = count(next_val)
+                            break
+
+                # 更新 species 集合
+                self._update_species_from_result(
+                    population, new_representatives, new_members, generation
+                )
+                return
+            except Exception:
+                # 如果快速划分失败，回退到原始实现
+                pass
+
+        # 原始实现
+        self._speciate_original(config, population, generation)
+
+    def _update_species_from_result(self, population, new_representatives, new_members, generation):
+        """根据快速划分结果更新 species 集合
+
+        Args:
+            population: {genome_id: genome} 字典
+            new_representatives: {species_id: genome_id} 字典
+            new_members: {species_id: [genome_id, ...]} 字典
+            generation: 当前代数
+        """
+        self.genome_to_species = {}
+        for sid in sorted(new_representatives.keys()):
+            rid = new_representatives[sid]
+            s = self.species.get(sid)
+            if s is None:
+                s = Species(sid, generation)
+                self.species[sid] = s
+
+            members = new_members[sid]
+            for gid in members:
+                self.genome_to_species[gid] = sid
+
+            member_dict = {gid: population[gid] for gid in members}
+            s.update(population[rid], member_dict)
+
+    def _speciate_original(self, config, population, generation):
+        """原始的物种划分实现（作为回退）"""
         compatibility_threshold = self.species_set_config.compatibility_threshold
 
         # Find the best representatives for each existing species.
